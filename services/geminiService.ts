@@ -24,7 +24,7 @@ export const generateOutline = async (topic: string, config: SEOConfig): Promise
   Từ khóa chính: ${config.mainKeyword}. 
   Số lượng mục H2 yêu cầu: ${config.h2Count}. 
   Ngôn ngữ: ${config.language}. 
-  Thông tin bổ sung: ${config.additionalInfo}.
+  Thông tin liên hệ: ${config.additionalInfo}.
   Hãy trả về một danh sách các tiêu đề mục (H2/H3) hấp dẫn, kích thích click và tối ưu SEO.`;
 
   const response = await ai.models.generateContent({
@@ -90,7 +90,7 @@ export const generateArticleContent = async (topic: string, config: SEOConfig, o
   - Phong cách viết: ${config.style}
   - Từ khóa chính cần tối ưu: ${config.mainKeyword}
   - Ngôn ngữ: ${config.language}
-  - Thông tin bổ sung: ${config.additionalInfo}
+  - Thông tin liên hệ: ${config.additionalInfo}
   
   Hãy viết nội dung chi tiết cho từng mục trong dàn ý. Mỗi mục cần có ít nhất 2-3 đoạn văn bản chất lượng.
   Sử dụng định dạng Markdown cho các tiêu đề, danh sách, và nhấn mạnh.

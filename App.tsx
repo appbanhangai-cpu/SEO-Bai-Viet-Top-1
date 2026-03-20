@@ -692,7 +692,7 @@ const App: React.FC = () => {
                 <div className="space-y-6">
                   {/* PHẦN TẢI ẢNH SẢN PHẨM THỰC TẾ */}
                   <div>
-                    <label className="block font-bold text-gray-200 mb-2">Ảnh sản phẩm thực tế (Mở rộng)</label>
+                    <label className="block font-bold text-gray-200 mb-2">Ảnh SP hay hình ảnh cá nhân</label>
                     <div 
                       onClick={() => !config.productImage && fileInputRef.current?.click()}
                       className={`relative w-full h-32 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center overflow-hidden cursor-pointer ${
@@ -753,7 +753,7 @@ const App: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block font-bold text-gray-200 mb-2">Thông tin bổ sung</label>
+                    <label className="block font-bold text-gray-200 mb-2">Thông tin liên hệ:</label>
                     <textarea value={config.additionalInfo} onChange={(e) => setConfig({...config, additionalInfo: e.target.value})} placeholder="Nhập thêm yêu cầu..." className="w-full p-4 bg-[#0f172a] rounded-xl border border-gray-800 min-h-[100px] text-white placeholder-gray-600" />
                   </div>
                 </div>
