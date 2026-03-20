@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { asBlob } from 'html-docx-js-typescript';
+import { motion, AnimatePresence } from 'motion/react';
 import { Search, Settings, FileText, PenTool, ChevronRight, ChevronLeft, RotateCcw, ArrowUp, ArrowDown, Trash2, Plus, Download, Image as ImageIcon, FileOutput, Save, Check, RefreshCw, Copy, BarChart3, Key, Upload, X, Palette } from 'lucide-react';
 import { AppStep, WritingStyle, SEOConfig, OutlineSection, GeneratedArticle } from './types';
 import { generateOutline, generateArticleContent, generateAIImage, regenerateOutlineTitle } from './services/geminiService';
@@ -75,11 +76,15 @@ const App: React.FC = () => {
   const prevStep = () => setStep(prev => Math.max(prev - 1, 1));
 
   const handleOpenKeySelector = async () => {
-    if (typeof window !== 'undefined' && (window as any).aistudio) {
-      await (window as any).aistudio.openSelectKey();
+    if (typeof window !== 'undefined' && window.aistudio) {
+      await window.aistudio.openSelectKey();
       setErrorState(null);
     } else {
-      alert("Tính năng này chỉ khả dụng trong môi trường AI Studio. Trên Vercel, vui lòng cấu hình GEMINI_API_KEY trong Environment Variables.");
+      // On Vercel, we guide the user to set environment variables
+      setErrorState({
+        message: "Để sử dụng trên Vercel, bạn cần cấu hình GEMINI_API_KEY trong phần Settings -> Environment Variables của Vercel Project.",
+        isQuota: false
+      });
     }
   };
 
@@ -497,7 +502,7 @@ const App: React.FC = () => {
           </div>
 
           {/* API Key Button - Only show in AI Studio or if needed */}
-          {(typeof window !== 'undefined' && (window as any).aistudio) && (
+          {(typeof window !== 'undefined' && window.aistudio) ? (
             <button 
               onClick={handleOpenKeySelector}
               className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-gray-700 hover:border-purple-400 hover:text-purple-400 transition-all bg-[#1e293b]"
@@ -506,6 +511,11 @@ const App: React.FC = () => {
               <Key size={14} />
               <span className="text-xs">API Key</span>
             </button>
+          ) : (
+            <div className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-gray-800 bg-[#0f172a] text-gray-500">
+              <Check size={12} className="text-green-500" />
+              <span className="text-[10px] uppercase tracking-wider font-bold">Vercel Mode</span>
+            </div>
           )}
           <span className="hidden sm:inline border-l pl-3 border-gray-700">Hỗ trợ: 0988771339</span>
           <div className="relative group">
@@ -520,7 +530,12 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="w-full max-w-4xl bg-[#1e293b] rounded-3xl shadow-2xl border border-gray-800 p-8 md:p-12 min-h-[500px] flex flex-col relative print:border-none print:shadow-none print:p-0">
+      <motion.main 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-4xl bg-[#1e293b] rounded-3xl shadow-2xl border border-gray-800 p-8 md:p-12 min-h-[500px] flex flex-col relative print:border-none print:shadow-none print:p-0"
+      >
         {renderStepper()}
 
         {errorState && (
@@ -894,7 +909,7 @@ const App: React.FC = () => {
             )}
           </div>
         )}
-      </main>
+      </motion.main>
 
       <footer className="mt-12 text-center text-gray-500 text-sm print:hidden">
         <p>© {new Date().getFullYear()} Mr Thoan. All rights reserved.</p>

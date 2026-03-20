@@ -11,8 +11,7 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        // No longer exposing API keys to the client for security.
-        // Use /api/ai serverless function instead.
+        'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY || ''),
       },
       resolve: {
         alias: {

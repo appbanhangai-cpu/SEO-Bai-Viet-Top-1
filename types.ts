@@ -43,11 +43,15 @@ export interface OutlineSection {
 export interface GeneratedArticle {
   title: string;
   sections: {
+    id?: string;
     title: string;
     content: string;
     image?: string;
     prompt?: string;
   }[];
+  metaDescription?: string;
+  keywords?: string[];
+  publishDate?: string;
 }
 
 declare global {
