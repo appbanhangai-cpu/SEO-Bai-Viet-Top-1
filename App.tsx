@@ -54,9 +54,13 @@ const App: React.FC = () => {
 
   const bgOptions = [
     { name: 'Xanh Đen', color: '#0f172a' },
-    { name: 'Xám Tối', color: '#121212' },
-    { name: 'Xanh Rêu', color: '#061a1a' },
-    { name: 'Tím Thẫm', color: '#1a0f2e' },
+    { name: 'Xám Ghi', color: '#334155' },
+    { name: 'Vàng Đồng', color: '#713f12' },
+    { name: 'Xanh Lá Đậm', color: '#064e3b' },
+    { name: 'Tím Huyền Bí', color: '#4c1d95' },
+    { name: 'Hồng Đỏ', color: '#881337' },
+    { name: 'Xanh Dương', color: '#1e3a8a' },
+    { name: 'Nâu Đất', color: '#451a03' },
     { name: 'Đen Tuyền', color: '#000000' },
   ];
 
