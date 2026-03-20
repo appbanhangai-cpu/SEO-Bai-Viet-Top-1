@@ -4,15 +4,19 @@ import { SEOConfig, OutlineSection, GeneratedArticle, WritingStyle } from "../ty
 
 // Helper to get API Key
 const getApiKey = () => {
-  return (typeof window !== 'undefined' && (window as any).GOOGLE_GENAI_API_KEY) || 
-         process.env.GEMINI_API_KEY || 
+  if (typeof window !== 'undefined') {
+    const localKey = localStorage.getItem('GEMINI_API_KEY');
+    if (localKey) return localKey;
+    if ((window as any).GOOGLE_GENAI_API_KEY) return (window as any).GOOGLE_GENAI_API_KEY;
+  }
+  return process.env.GEMINI_API_KEY || 
          (import.meta as any).env?.VITE_GEMINI_API_KEY || 
          '';
 };
 
 export const generateOutline = async (topic: string, config: SEOConfig): Promise<OutlineSection[]> => {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured. Please set it in your environment variables.');
+  if (!apiKey) throw new Error('GEMINI_API_KEY chưa được cấu hình. Vui lòng nhấp vào nút "Sử dụng API Key cá nhân" để tiếp tục.');
   
   const ai = new GoogleGenAI({ apiKey });
   const prompt = `Xây dựng dàn ý bài viết chuẩn SEO cho chủ đề: "${topic}". 

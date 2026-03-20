@@ -3,15 +3,19 @@ import { GoogleGenAI } from "@google/genai";
 
 // Helper to get API Key
 const getApiKey = () => {
-  return (typeof window !== 'undefined' && (window as any).GOOGLE_GENAI_API_KEY) || 
-         process.env.GEMINI_API_KEY || 
+  if (typeof window !== 'undefined') {
+    const localKey = localStorage.getItem('GEMINI_API_KEY');
+    if (localKey) return localKey;
+    if ((window as any).GOOGLE_GENAI_API_KEY) return (window as any).GOOGLE_GENAI_API_KEY;
+  }
+  return process.env.GEMINI_API_KEY || 
          (import.meta as any).env?.VITE_GEMINI_API_KEY || 
          '';
 };
 
 export async function generateAppImages() {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
+  if (!apiKey) throw new Error('GEMINI_API_KEY chưa được cấu hình.');
   
   const ai = new GoogleGenAI({ apiKey });
 
