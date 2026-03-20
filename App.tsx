@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { asBlob } from 'html-docx-js-typescript';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Settings, FileText, PenTool, ChevronRight, ChevronLeft, RotateCcw, ArrowUp, ArrowDown, Trash2, Plus, Download, Image as ImageIcon, FileOutput, Save, Check, RefreshCw, Copy, BarChart3, Key, Upload, X, Palette } from 'lucide-react';
+import { Search, Settings, FileText, PenTool, ChevronRight, ChevronLeft, RotateCcw, ArrowUp, ArrowDown, Trash2, Plus, Download, Image as ImageIcon, FileOutput, Save, Check, RefreshCw, Copy, BarChart3, Key, Upload, X, Palette, QrCode } from 'lucide-react';
 import { AppStep, WritingStyle, SEOConfig, OutlineSection, GeneratedArticle } from './types';
 import { generateOutline, generateArticleContent, generateAIImage, regenerateOutlineTitle } from './services/geminiService';
 import { generateAppImages } from './services/imageGenerator';
@@ -50,6 +50,7 @@ const App: React.FC = () => {
   const [customAvatar, setCustomAvatar] = useState<string>("https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?q=80&w=256&h=256&auto=format&fit=crop");
   const [appBgColor, setAppBgColor] = useState<string>("#0f172a");
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const bgOptions = [
@@ -219,6 +220,7 @@ const App: React.FC = () => {
           `).join("")}
           <div style="margin-top: 50pt; text-align: center; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 20pt;">
               <p>Bài viết được tạo bởi SEO Writer by Mr Thoan</p>
+              <p style="color: #22c55e; font-weight: bold;">Ủng hộ tác giả cốc cafe: 0988771339 (MB Bank)</p>
           </div>
       </body>
       </html>
@@ -466,7 +468,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center py-10 px-4 transition-colors duration-500" style={{ backgroundColor: appBgColor, color: '#f3f4f6' }}>
-      <header className="w-full max-w-5xl flex items-center justify-between mb-12 print:hidden">
+      <header className="w-full max-w-5xl flex flex-col md:flex-row items-center justify-between mb-12 gap-6 print:hidden">
         <div className="flex items-center space-x-3">
           <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-purple-400 shadow-md transition-all duration-500 hover:scale-125 hover:rotate-6 cursor-pointer">
             <img 
@@ -476,9 +478,20 @@ const App: React.FC = () => {
               referrerPolicy="no-referrer"
             />
           </div>
-          <h1 className="text-xl font-bold text-white">SEO Writer <span className="text-purple-400 font-normal">by Mr Thoan</span></h1>
+          <div className="flex flex-col">
+            <h1 className="text-xl font-bold text-white leading-tight">SEO Writer <span className="text-purple-400 font-normal">by Mr Thoan</span></h1>
+              <p className="text-green-500 font-bold text-sm tracking-wide flex items-center gap-2">
+                Ủng hộ tác giả cốc cafe
+                <QrCode 
+                  size={28} 
+                  className="cursor-pointer hover:text-white transition-colors" 
+                  onClick={() => setShowQRModal(true)}
+                  title="Quét mã QR ủng hộ"
+                />
+              </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-3 text-sm font-medium text-gray-300">
+        <div className="flex flex-wrap items-center justify-center md:justify-end gap-3 text-sm font-medium text-gray-300">
           <div className="relative">
             <button 
               onClick={() => setShowColorPicker(!showColorPicker)}
@@ -505,6 +518,8 @@ const App: React.FC = () => {
             )}
           </div>
 
+
+
           {/* API Key Button - Only show in AI Studio or if needed */}
           {(typeof window !== 'undefined' && window.aistudio) ? (
             <button 
@@ -521,7 +536,7 @@ const App: React.FC = () => {
               <span className="text-[10px] uppercase tracking-wider font-bold">Vercel Mode</span>
             </div>
           )}
-          <span className="hidden sm:inline border-l pl-3 border-gray-700">Hỗ trợ: 0988771339</span>
+          <span className="hidden lg:inline border-l pl-3 border-gray-700">Hỗ trợ: 0988771339</span>
           <div className="relative group">
             <img 
               src={customAvatar} 
@@ -915,9 +930,24 @@ const App: React.FC = () => {
         )}
       </motion.main>
 
-      <footer className="mt-12 text-center text-gray-500 text-sm print:hidden">
-        <p>© {new Date().getFullYear()} Mr Thoan. All rights reserved.</p>
-        <p className="mt-1">Powered by Google Gemini 3 Flash & Nano Banana</p>
+      <footer className="mt-12 mb-10 text-center text-gray-500 text-sm print:hidden flex flex-col items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-px w-12 bg-gray-800"></div>
+          <p className="text-green-500 font-bold flex items-center gap-2">
+            Ủng hộ tác giả cốc cafe
+            <QrCode 
+              size={28} 
+              className="cursor-pointer hover:text-white transition-colors" 
+              onClick={() => setShowQRModal(true)}
+              title="Quét mã QR ủng hộ"
+            />
+          </p>
+          <div className="h-px w-12 bg-gray-800"></div>
+        </div>
+        <div className="opacity-60">
+          <p>© {new Date().getFullYear()} SEO Writer by Mr Thoan. All rights reserved.</p>
+          <p className="mt-1">Powered by Google Gemini 3 Flash & Nano Banana</p>
+        </div>
       </footer>
 
       {/* Image Zoom Modal */}
@@ -939,6 +969,56 @@ const App: React.FC = () => {
             referrerPolicy="no-referrer"
             onClick={(e) => e.stopPropagation()}
           />
+        </div>
+      )}
+
+      {/* QR Code Modal */}
+      {showQRModal && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300"
+          onClick={() => setShowQRModal(false)}
+        >
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-[#1e293b] p-6 rounded-[2rem] border border-gray-800 shadow-2xl max-w-[340px] w-full text-center relative overflow-y-auto max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              className="absolute top-3 right-3 text-gray-500 hover:text-white transition-colors bg-gray-800/50 p-1 rounded-full"
+              onClick={() => setShowQRModal(false)}
+            >
+              <X size={20} />
+            </button>
+            <div className="mb-4">
+              <div className="w-14 h-14 bg-green-500/10 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <QrCode size={28} className="text-green-500" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-1 leading-tight">Ủng hộ tác giả cốc cafe qua mã QR:</h3>
+              <p className="text-gray-400 text-xs">Quét mã QR bên dưới để ủng hộ tác giả nhé!</p>
+            </div>
+            
+            <div className="bg-white p-3 rounded-2xl mb-4 inline-block shadow-inner">
+              <img 
+                src="https://img.vietqr.io/image/MB-0988771339-compact2.jpg?addInfo=Ung%20ho%20tac%20gia%20coc%20Cafe&accountName=Nguyen%20Viet%20Thoan" 
+                alt="MB Bank QR Code" 
+                className="w-56 h-auto mx-auto"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <div className="p-2 bg-[#0f172a] rounded-xl border border-gray-800">
+                <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-0.5">MB Bank - Nguyễn Viết Thoan</p>
+                <p className="text-green-500 font-bold text-sm">STK: 0988771339</p>
+              </div>
+              <button 
+                onClick={() => setShowQRModal(false)}
+                className="w-full py-2 bg-gray-800 text-white rounded-xl font-bold hover:bg-gray-700 transition-all text-sm"
+              >
+                Đóng
+              </button>
+            </div>
+          </motion.div>
         </div>
       )}
 
