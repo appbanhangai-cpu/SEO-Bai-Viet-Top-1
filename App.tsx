@@ -149,11 +149,15 @@ const App: React.FC = () => {
       setOutline(data);
       if (step < 3) nextStep();
     } catch (error: any) {
+      console.error("Lỗi tạo dàn ý:", error);
       const isQuota = error.message.includes('429') || error.message.toLowerCase().includes('quota');
-      setErrorState({
-        message: isQuota ? "Hạn mức API miễn phí đã hết. Vui lòng sử dụng API Key cá nhân để tiếp tục." : error.message,
-        isQuota
-      });
+      const isInvalidKey = error.message.includes('403') || error.message.toLowerCase().includes('api key');
+      
+      let message = error.message;
+      if (isQuota) message = "Hạn mức API miễn phí đã hết. Vui lòng nạp API Key cá nhân (trả phí) để tiếp tục.";
+      if (isInvalidKey) message = "API Key không hợp lệ hoặc chưa được kích hoạt. Vui lòng kiểm tra lại trong phần Quản lý API Key.";
+      
+      setErrorState({ message, isQuota: isQuota || isInvalidKey });
     } finally {
       setIsLoading(false);
     }
@@ -171,13 +175,17 @@ const App: React.FC = () => {
       newOutline[index].title = newTitle;
       setOutline([...newOutline]);
     } catch (e: any) {
+      console.error("Lỗi viết lại tiêu đề:", e);
       newOutline[index].title = originalTitle;
       setOutline([...newOutline]);
       const isQuota = e.message.includes('429') || e.message.toLowerCase().includes('quota');
-      setErrorState({
-        message: isQuota ? "Hạn mức API đã hết khi tạo tiêu đề." : "Lỗi khi viết lại tiêu đề.",
-        isQuota
-      });
+      const isInvalidKey = e.message.includes('403') || e.message.toLowerCase().includes('api key');
+      
+      let message = e.message;
+      if (isQuota) message = "Hạn mức API đã hết khi tạo tiêu đề.";
+      if (isInvalidKey) message = "API Key không hợp lệ.";
+
+      setErrorState({ message, isQuota: isQuota || isInvalidKey });
     }
   };
 
@@ -213,11 +221,15 @@ const App: React.FC = () => {
       setArticle({ ...data, sections: sectionsWithImages });
       nextStep();
     } catch (error: any) {
+      console.error("Lỗi viết bài:", error);
       const isQuota = error.message.includes('429') || error.message.toLowerCase().includes('quota');
-      setErrorState({
-        message: isQuota ? "Hạn mức API đã hết khi đang viết bài. Hãy sử dụng Key cá nhân." : error.message,
-        isQuota
-      });
+      const isInvalidKey = error.message.includes('403') || error.message.toLowerCase().includes('api key');
+      
+      let message = error.message;
+      if (isQuota) message = "Hạn mức API đã hết khi đang viết bài. Hãy sử dụng Key cá nhân hoặc đổi Key khác.";
+      if (isInvalidKey) message = "API Key không hợp lệ. Vui lòng kiểm tra lại.";
+
+      setErrorState({ message, isQuota: isQuota || isInvalidKey });
     } finally {
       setIsLoading(false);
     }
@@ -301,10 +313,13 @@ const App: React.FC = () => {
       newSections[index].image = originalImage;
       setArticle({ ...article, sections: [...newSections] });
       const isQuota = error.message.includes('429') || error.message.toLowerCase().includes('quota');
-      setErrorState({
-        message: isQuota ? "Hạn mức API đã hết khi tạo lại ảnh." : "Lỗi khi tạo lại ảnh.",
-        isQuota
-      });
+      const isInvalidKey = error.message.includes('403') || error.message.toLowerCase().includes('api key');
+      
+      let message = error.message;
+      if (isQuota) message = "Hạn mức API đã hết khi tạo lại ảnh.";
+      if (isInvalidKey) message = "API Key không hợp lệ.";
+
+      setErrorState({ message, isQuota: isQuota || isInvalidKey });
     }
   };
 
@@ -594,6 +609,33 @@ const App: React.FC = () => {
         className="w-full max-w-4xl bg-[#1e293b] rounded-3xl shadow-2xl border border-gray-800 p-8 md:p-12 min-h-[500px] flex flex-col relative print:border-none print:shadow-none print:p-0"
       >
         {renderStepper()}
+
+        {errorState && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mb-8 p-4 bg-red-500/10 border border-red-500/50 rounded-2xl flex items-start space-x-3"
+          >
+            <div className="bg-red-500 p-1 rounded-full shrink-0 mt-0.5">
+              <X size={14} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <h4 className="text-red-400 font-bold text-sm mb-1">Lỗi hệ thống</h4>
+              <p className="text-gray-300 text-sm">{errorState.message}</p>
+              {errorState.isQuota && (
+                <button 
+                  onClick={() => setShowKeyInput(true)}
+                  className="mt-3 text-xs font-bold text-white bg-red-600 px-4 py-2 rounded-lg hover:bg-red-700 transition-all"
+                >
+                  Nạp API Key mới ngay
+                </button>
+              )}
+            </div>
+            <button onClick={() => setErrorState(null)} className="text-gray-500 hover:text-white transition-colors">
+              <X size={18} />
+            </button>
+          </motion.div>
+        )}
 
         {isLoading ? (
           <div className="flex-1 flex flex-col items-center justify-center py-20">
