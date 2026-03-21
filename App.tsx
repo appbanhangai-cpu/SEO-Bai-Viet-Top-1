@@ -79,6 +79,7 @@ const App: React.FC = () => {
   const [showQRModal, setShowQRModal] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showKeyInput, setShowKeyInput] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [selectedKeyProvider, setSelectedKeyProvider] = useState<AIProvider>(AIProvider.GEMINI);
   const [hasApiKey, setHasApiKey] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1329,7 +1330,7 @@ const App: React.FC = () => {
       {showQRModal && (
         <div 
           className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300"
-          onClick={() => setShowQRModal(false)}
+          onClick={() => { setShowQRModal(false); setPaymentSuccess(false); }}
         >
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
@@ -1339,38 +1340,63 @@ const App: React.FC = () => {
           >
             <button 
               className="absolute top-3 right-3 text-gray-500 hover:text-white transition-colors bg-gray-800/50 p-1 rounded-full"
-              onClick={() => setShowQRModal(false)}
+              onClick={() => { setShowQRModal(false); setPaymentSuccess(false); }}
             >
               <X size={20} />
             </button>
-            <div className="mb-4">
-              <div className="w-14 h-14 bg-green-500/10 rounded-xl flex items-center justify-center mx-auto mb-3">
-                <QrCode size={28} className="text-green-500" />
+
+            {paymentSuccess ? (
+              <div className="py-8 animate-in zoom-in duration-500">
+                <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-green-500/20">
+                  <Check size={40} className="text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">Thành công!</h3>
+                <p className="text-green-400 font-medium text-lg">Cảm ơn tác giả Đã nhận được tiền!</p>
+                <button 
+                  onClick={() => { setShowQRModal(false); setPaymentSuccess(false); }}
+                  className="mt-8 w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all"
+                >
+                  Tuyệt vời
+                </button>
               </div>
-              <h3 className="text-xl font-bold text-white mb-1 leading-tight">Ủng hộ tác giả cốc cafe qua mã QR:</h3>
-              <p className="text-gray-400 text-xs">Quét mã QR bên dưới để ủng hộ tác giả nhé!</p>
-            </div>
-            
-            <div className="bg-white p-3 rounded-2xl mb-4 inline-block shadow-inner">
-              <img 
-                src="https://img.vietqr.io/image/MB-0988771339-compact2.jpg?addInfo=Ung%20ho%20tac%20gia%20coc%20Cafe&accountName=Nguyen%20Viet%20Thoan" 
-                alt="MB Bank QR Code" 
-                className="w-56 h-auto mx-auto"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <div className="p-2 bg-[#0f172a] rounded-xl border border-gray-800">
-                <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-0.5">MB Bank - Nguyễn Viết Thoan</p>
-                <p className="text-green-500 font-bold text-sm">STK: 0988771339</p>
-              </div>
-              <button 
-                onClick={() => setShowQRModal(false)}
-                className="w-full py-2 bg-gray-800 text-white rounded-xl font-bold hover:bg-gray-700 transition-all text-sm"
-              >
-                Đóng
-              </button>
-            </div>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <div className="w-14 h-14 bg-green-500/10 rounded-xl flex items-center justify-center mx-auto mb-3">
+                    <QrCode size={28} className="text-green-500" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-1 leading-tight">Ủng hộ tác giả cốc cafe qua mã QR:</h3>
+                  <p className="text-gray-400 text-xs">Quét mã QR bên dưới để ủng hộ tác giả nhé!</p>
+                </div>
+                
+                <div className="bg-white p-3 rounded-2xl mb-4 inline-block shadow-inner">
+                  <img 
+                    src="https://img.vietqr.io/image/MB-0988771339-compact2.jpg?addInfo=Ung%20ho%20tac%20gia%20coc%20Cafe&accountName=Nguyen%20Viet%20Thoan" 
+                    alt="MB Bank QR Code" 
+                    className="w-56 h-auto mx-auto"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="p-2 bg-[#0f172a] rounded-xl border border-gray-800">
+                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-0.5">MB Bank - Nguyễn Viết Thoan</p>
+                    <p className="text-green-500 font-bold text-sm">STK: 0988771339</p>
+                  </div>
+                  <button 
+                    onClick={() => setPaymentSuccess(true)}
+                    className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all text-sm mb-1 shadow-lg shadow-green-900/20"
+                  >
+                    Tôi đã chuyển khoản
+                  </button>
+                  <button 
+                    onClick={() => setShowQRModal(false)}
+                    className="w-full py-2 bg-gray-800 text-white rounded-xl font-bold hover:bg-gray-700 transition-all text-sm"
+                  >
+                    Đóng
+                  </button>
+                </div>
+              </>
+            )}
           </motion.div>
         </div>
       )}
