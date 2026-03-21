@@ -41,10 +41,11 @@ export const generateOutline = async (topic: string, config: SEOConfig): Promise
     const ai = new GoogleGenAI({ apiKey });
     const prompt = `Xây dựng dàn ý bài viết chuẩn SEO cho chủ đề: "${topic}". 
     Phong cách: ${config.style}. 
-    Từ khóa chính: ${config.mainKeyword}. 
+    Từ khóa chính cần quảng cáo: ${config.mainKeyword}. 
     Số lượng mục H2 yêu cầu: ${config.h2Count}. 
     Ngôn ngữ: ${config.language}. 
     Thông tin liên hệ: ${config.additionalInfo}.
+    URL nhúng bản đồ: ${config.mapEmbedUrl || 'Không có'}.
     Hãy trả về một danh sách các tiêu đề mục (H2/H3) hấp dẫn, kích thích click và tối ưu SEO.`;
 
     const response = await ai.models.generateContent({
@@ -76,10 +77,11 @@ export const generateOutline = async (topic: string, config: SEOConfig): Promise
     const openai = getOpenAIClient(config.provider);
     const prompt = `Xây dựng dàn ý bài viết chuẩn SEO cho chủ đề: "${topic}". 
     Phong cách: ${config.style}. 
-    Từ khóa chính: ${config.mainKeyword}. 
+    Từ khóa chính cần quảng cáo: ${config.mainKeyword}. 
     Số lượng mục H2 yêu cầu: ${config.h2Count}. 
     Ngôn ngữ: ${config.language}. 
     Thông tin liên hệ: ${config.additionalInfo}.
+    URL nhúng bản đồ: ${config.mapEmbedUrl || 'Không có'}.
     Hãy trả về một danh sách các tiêu đề mục (H2/H3) hấp dẫn, kích thích click và tối ưu SEO.
     Định dạng trả về: JSON array các object có thuộc tính "title". Ví dụ: [{"title": "Mục 1"}, {"title": "Mục 2"}]`;
 
@@ -128,6 +130,7 @@ export const regenerateOutlineTitle = async (currentTitle: string, topic: string
 
 export const generateArticleContent = async (topic: string, config: SEOConfig, outline: OutlineSection[]): Promise<GeneratedArticle> => {
   const sectionsPrompt = outline.map(s => `- ${s.title}`).join('\n');
+  const hasProductImages = config.productImages && config.productImages.length > 0;
   const prompt = `Bạn là một chuyên gia SEO và Content Writer hàng đầu. Hãy viết một bài viết chuyên sâu, sinh động và cực kỳ hấp dẫn về chủ đề: "${topic}".
   
   Cấu trúc bài viết dựa trên dàn ý sau:
@@ -135,9 +138,11 @@ export const generateArticleContent = async (topic: string, config: SEOConfig, o
   
   Yêu cầu về nội dung và trình bày (BẮT BUỘC):
   - Phong cách viết: ${config.style}
-  - Từ khóa chính cần tối ưu: ${config.mainKeyword}
+  - Từ khóa chính cần quảng cáo: ${config.mainKeyword}
   - Ngôn ngữ: ${config.language}
   - Thông tin liên hệ: ${config.additionalInfo}
+  - URL nhúng bản đồ: ${config.mapEmbedUrl || 'Không có'}
+  ${hasProductImages ? '- **LƯU Ý**: Tôi đã cung cấp các hình ảnh sản phẩm thực tế. Hãy viết mô tả bối cảnh hình ảnh (prompt) sao cho sản phẩm này được đặt vào một không gian phù hợp, chuyên nghiệp và hấp dẫn.' : ''}
   
   - **Sử dụng biểu tượng cảm xúc (emojis)** phù hợp ở đầu các đoạn văn hoặc các ý quan trọng để bài viết thêm sinh động.
   - **TRÌNH BÀY THOÁNG ĐÃNG (QUAN TRỌNG)**: 

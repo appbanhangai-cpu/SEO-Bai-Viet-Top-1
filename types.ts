@@ -38,9 +38,10 @@ export interface SEOConfig {
   wordCount: number;
   language: string;
   additionalInfo: string;
-  productImage?: string; // Dữ liệu ảnh sản phẩm dạng base64
+  productImages?: string[]; // Danh sách ảnh sản phẩm dạng base64
   provider: AIProvider;
   model: string;
+  mapEmbedUrl?: string;
 }
 
 export interface OutlineSection {

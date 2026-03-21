@@ -48,14 +48,37 @@ const App: React.FC = () => {
       wordCount: 1500,
       language: 'Tiếng Việt',
       additionalInfo: '',
-      productImage: undefined,
+      productImages: [],
       provider: AIProvider.GEMINI,
       model: 'gemini-3-flash-preview'
     };
   });
 
   useEffect(() => {
-    localStorage.setItem('SEO_CONFIG', JSON.stringify(config));
+    try {
+      // Create a copy of config without images for persistence if they are too large
+      const configToSave = { ...config };
+      const serialized = JSON.stringify(configToSave);
+      
+      // Check if size is approaching localStorage limit (approx 5MB)
+      if (serialized.length > 4 * 1024 * 1024) {
+        console.warn("Config is too large to save to localStorage, removing images from persistence.");
+        delete configToSave.productImages;
+        localStorage.setItem('SEO_CONFIG', JSON.stringify(configToSave));
+      } else {
+        localStorage.setItem('SEO_CONFIG', serialized);
+      }
+    } catch (e) {
+      console.error("Failed to save config to localStorage", e);
+      // Fallback: try saving without images
+      try {
+        const fallbackConfig = { ...config };
+        delete fallbackConfig.productImages;
+        localStorage.setItem('SEO_CONFIG', JSON.stringify(fallbackConfig));
+      } catch (innerError) {
+        console.error("Critical failure saving to localStorage", innerError);
+      }
+    }
   }, [config]);
   useEffect(() => {
     marked.setOptions({
@@ -174,19 +197,71 @@ const App: React.FC = () => {
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setConfig({ ...config, productImage: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>) => {
+    try {
+      let files: FileList | null = null;
+      if ('files' in e.target && e.target.files) {
+        files = e.target.files;
+      } else if ('dataTransfer' in e && e.dataTransfer.files) {
+        files = e.dataTransfer.files;
+        e.preventDefault();
+      }
+
+      if (files && files.length > 0) {
+        const fileArray = Array.from(files);
+        
+        // Filter out files larger than 5MB to prevent memory issues
+        const validFiles = fileArray.filter(file => {
+          if (file.size > 5 * 1024 * 1024) {
+            alert(`File ${file.name} quá lớn (tối đa 5MB).`);
+            return false;
+          }
+          return true;
+        });
+
+        if (validFiles.length === 0) return;
+
+        const newImages = await Promise.all(
+          validFiles.map(file => {
+            return new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = () => reject(new Error("Lỗi đọc file"));
+              reader.readAsDataURL(file);
+            });
+          })
+        );
+
+        setConfig(prev => ({
+          ...prev,
+          productImages: [...(prev.productImages || []), ...newImages]
+        }));
+        
+        // Reset input value to allow re-uploading the same file if needed
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error("Lỗi tải ảnh:", error);
+      alert("Có lỗi xảy ra khi tải ảnh. Vui lòng thử lại.");
     }
   };
 
-  const removeProductImage = () => {
-    setConfig({ ...config, productImage: undefined });
+  const [isDragging, setIsDragging] = useState(false);
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  const handleDragLeave = () => setIsDragging(false);
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleImageUpload(e);
+  };
+
+  const removeProductImage = (index: number) => {
+    const newImages = [...(config.productImages || [])];
+    newImages.splice(index, 1);
+    setConfig({ ...config, productImages: newImages });
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -266,9 +341,13 @@ const App: React.FC = () => {
       const data = await generateArticleContent(topic, config, outline);
       setProgressMsg('Đang đưa sản phẩm thực tế của bạn vào bối cảnh chuyên nghiệp...');
       
-      const imagePromises = data.sections.map(async (sec) => {
+      const imagePromises = data.sections.map(async (sec, idx) => {
         try {
-          const img = await generateAIImage(sec.prompt || sec.title, config.productImage);
+          // Sử dụng ảnh sản phẩm tương ứng nếu có nhiều ảnh, hoặc ảnh đầu tiên
+          const currentProductImage = config.productImages && config.productImages.length > 0 
+            ? config.productImages[idx % config.productImages.length] 
+            : undefined;
+          const img = await generateAIImage(sec.prompt || sec.title, currentProductImage);
           return { ...sec, image: img };
         } catch (imgError) {
           console.error("Lỗi tạo ảnh cho mục:", sec.title, imgError);
@@ -309,7 +388,7 @@ const App: React.FC = () => {
               h1 { color: #7c3aed; text-align: center; font-size: 20pt; margin-bottom: 12pt; }
               h2 { color: #1e293b; border-bottom: 1px solid #7c3aed; padding-bottom: 2pt; margin-top: 15pt; font-size: 14pt; }
               p { margin-bottom: 8pt; font-size: 11pt; }
-              img { width: 500px; height: auto; display: block; margin: 10pt auto; }
+              img { width: auto; max-width: 100%; max-height: 400px; display: block; margin: 10pt auto; }
               .section { margin-bottom: 15pt; }
           </style>
       </head>
@@ -318,10 +397,18 @@ const App: React.FC = () => {
           ${article.sections.map(s => `
               <div class="section">
                   <h2>${s.title}</h2>
-                  ${s.image ? `<div style="text-align: center; margin: 10pt 0;"><img src="${s.image}" width="500" /></div>` : ''}
+                  ${s.image ? `<div style="text-align: center; margin: 10pt 0;"><img src="${s.image}" style="max-width: 100%; max-height: 400px;" /></div>` : ''}
                   <div style="font-size: 11pt;">${marked.parse(s.content)}</div>
               </div>
           `).join("")}
+          ${config.mapEmbedUrl ? `
+              <div class="section">
+                  <h2>Bản đồ chỉ đường</h2>
+                  <p style="text-align: center; margin: 10pt 0;">
+                      <a href="${config.mapEmbedUrl}" style="color: #7c3aed; font-weight: bold; text-decoration: underline;">Xem bản đồ chỉ đường trên Google Maps</a>
+                  </p>
+              </div>
+          ` : ''}
           <div style="margin-top: 40pt; text-align: center; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 15pt;">
               <p>Bài viết được tạo bởi SEO Writer by Mr Thoan</p>
               <p style="color: #22c55e; font-weight: bold;">Ủng hộ tác giả cốc cafe: 0988771339 (MB Bank)</p>
@@ -366,7 +453,10 @@ const App: React.FC = () => {
     setArticle({ ...article, sections: newSections });
 
     try {
-      const newImg = await generateAIImage(section.prompt || section.title, config.productImage);
+      const currentProductImage = config.productImages && config.productImages.length > 0 
+        ? config.productImages[index % config.productImages.length] 
+        : undefined;
+      const newImg = await generateAIImage(section.prompt || section.title, currentProductImage);
       newSections[index].image = newImg;
       setArticle({ ...article, sections: [...newSections] });
     } catch (error: any) {
@@ -491,11 +581,12 @@ const App: React.FC = () => {
           color: #334155; 
         }
         img { 
-          width: 100%; 
+          width: auto;
           max-width: 100%;
+          max-height: 500px;
           height: auto; 
           border-radius: 12px; 
-          margin: 20px 0; 
+          margin: 20px auto; 
           box-shadow: 0 10px 20px rgba(0,0,0,0.1); 
           display: block; 
         }
@@ -533,6 +624,14 @@ const App: React.FC = () => {
                 <div class="content">${marked.parse(s.content)}</div>
             </section>
         `).join('')}
+        ${config.mapEmbedUrl ? `
+            <section>
+                <h2>Bản đồ chỉ đường</h2>
+                <div style="width: 100%; height: 450px; border-radius: 12px; overflow: hidden; margin: 20px 0; border: 1px solid #e2e8f0;">
+                    <iframe src="${config.mapEmbedUrl}" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                </div>
+            </section>
+        ` : ''}
         <div class="footer">
             <p>Bài viết được tạo bởi <strong>SEO Writer by Mr Thoan</strong></p>
             <p>© ${new Date().getFullYear()} Mr Thoan. All rights reserved.</p>
@@ -711,27 +810,43 @@ const App: React.FC = () => {
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="text-center mb-10">
                   <h2 className="text-3xl font-bold text-white mb-4">Bước 1: Bạn muốn viết bài SEO cho chủ đề gì?</h2>
-                  <p className="text-gray-400">Nhập chủ đề và AI sẽ giúp bạn xây dựng bài viết chuẩn SEO hoàn chỉnh.</p>
+                  <p className="text-gray-400">Nhập chủ đề và từ khóa chính để AI giúp bạn xây dựng bài viết hoàn chỉnh.</p>
                 </div>
-                <div className="relative max-w-2xl mx-auto">
-                  <div className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500">
-                    <Search size={24} />
+                <div className="max-w-2xl mx-auto space-y-6">
+                  <div className="relative">
+                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500">
+                      <Search size={24} />
+                    </div>
+                    <input 
+                      type="text"
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
+                      placeholder="Chủ đề bài viết (Ví dụ: Cách nấu bún cá Hà Nội ngon...)"
+                      className="w-full pl-14 pr-6 py-5 bg-[#0f172a] border-2 border-gray-800 rounded-2xl focus:border-purple-500 focus:bg-[#1e293b] outline-none transition-all text-xl text-white placeholder-gray-600"
+                    />
                   </div>
-                  <input 
-                    type="text"
-                    value={topic}
-                    onChange={(e) => setTopic(e.target.value)}
-                    placeholder="Ví dụ: khóa học Youtube AI chuyên sâu..."
-                    className="w-full pl-14 pr-20 py-5 bg-[#0f172a] border-2 border-gray-800 rounded-2xl focus:border-purple-500 focus:bg-[#1e293b] outline-none transition-all text-xl text-white placeholder-gray-600"
-                    onKeyDown={(e) => e.key === 'Enter' && topic && nextStep()}
-                  />
+
+                  <div className="relative">
+                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500">
+                      <BarChart3 size={24} />
+                    </div>
+                    <input 
+                      type="text"
+                      value={config.mainKeyword}
+                      onChange={(e) => setConfig({ ...config, mainKeyword: e.target.value })}
+                      placeholder="Từ khóa chính cần quảng cáo (Ví dụ: bún cá Hà Nội, cách nấu bún cá...)"
+                      className="w-full pl-14 pr-6 py-5 bg-[#0f172a] border-2 border-gray-800 rounded-2xl focus:border-purple-500 focus:bg-[#1e293b] outline-none transition-all text-xl text-white placeholder-gray-600"
+                    />
+                  </div>
+
                   <button 
                     disabled={!topic}
                     onClick={nextStep}
-                    className={`absolute right-3 top-1/2 -translate-y-1/2 w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
-                      topic ? 'purple-bg text-white shadow-lg hover:scale-105' : 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                    className={`w-full py-5 rounded-2xl font-bold text-xl flex items-center justify-center space-x-3 transition-all ${
+                      topic ? 'purple-bg text-white shadow-xl hover:scale-[1.02] active:scale-95' : 'bg-gray-800 text-gray-600 cursor-not-allowed'
                     }`}
                   >
+                    <span>Tiếp tục cấu hình</span>
                     <ChevronRight size={24} />
                   </button>
                 </div>
@@ -826,44 +941,57 @@ const App: React.FC = () => {
 
                   {/* PHẦN TẢI ẢNH SẢN PHẨM THỰC TẾ */}
                   <div>
-                    <label className="block font-bold text-gray-200 mb-2">Ảnh SP hay hình ảnh cá nhân</label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="font-bold text-gray-200">Ảnh SP hay hình ảnh cá nhân</label>
+                      {config.productImages && config.productImages.length > 0 && (
+                        <button 
+                          onClick={() => setConfig({ ...config, productImages: [] })}
+                          className="text-[10px] text-red-400 hover:text-red-300 font-bold flex items-center gap-1"
+                        >
+                          <Trash2 size={10} />
+                          Xóa tất cả
+                        </button>
+                      )}
+                    </div>
                     <div 
-                      onClick={() => !config.productImage && fileInputRef.current?.click()}
-                      className={`relative w-full h-32 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center overflow-hidden cursor-pointer ${
-                        config.productImage ? 'border-purple-500 bg-purple-900/20' : 'border-gray-800 hover:border-purple-400 bg-[#0f172a]'
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={`w-full min-h-[128px] p-4 rounded-2xl border-2 border-dashed transition-all ${
+                        isDragging ? 'border-purple-500 bg-purple-900/20' : 'border-gray-800 bg-[#0f172a]'
                       }`}
                     >
-                      {config.productImage ? (
-                        <>
-                          <img src={config.productImage} className="w-full h-full object-contain p-2" alt="Product preview" referrerPolicy="no-referrer" />
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); removeProductImage(); }}
-                            className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700 shadow-md"
-                          >
-                            <X size={16} />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="text-gray-600 mb-2" size={28} />
-                          <span className="text-xs text-gray-500 font-medium">Tải ảnh sản phẩm của bạn</span>
-                          <span className="text-[10px] text-gray-600 mt-1">PNG, JPG tối đa 5MB</span>
-                        </>
-                      )}
-                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                        {config.productImages && config.productImages.map((img, idx) => (
+                          <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-purple-500/30 bg-purple-900/10 group/img-preview">
+                            <img src={img} className="w-full h-full object-cover" alt={`Product preview ${idx}`} referrerPolicy="no-referrer" />
+                            <button 
+                              onClick={() => removeProductImage(idx)}
+                              className="absolute top-1 right-1 bg-red-600/80 text-white p-1 rounded-full hover:bg-red-700 shadow-md backdrop-blur-sm opacity-0 group-hover/img-preview:opacity-100 transition-opacity"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                        
+                        <button 
+                          onClick={() => fileInputRef.current?.click()}
+                          className="aspect-square rounded-xl border-2 border-dashed border-gray-700 hover:border-purple-500 hover:bg-purple-900/10 transition-all flex flex-col items-center justify-center text-gray-500 hover:text-purple-400 group"
+                        >
+                          <Plus size={24} className="mb-1 group-hover:scale-110 transition-transform" />
+                          <span className="text-[10px] font-medium">Thêm ảnh</span>
+                        </button>
+                      </div>
+                      
+                      <div className="text-center">
+                        <span className="text-[10px] text-gray-600">
+                          {isDragging ? 'Thả ảnh vào đây' : 'PNG, JPG tối đa 5MB. Có thể tải nhiều ảnh cùng lúc.'}
+                        </span>
+                      </div>
+                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple onChange={handleImageUpload} />
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block font-bold text-gray-200 mb-2">Từ khóa chính (Main Keyword)</label>
-                    <input 
-                      type="text"
-                      value={config.mainKeyword}
-                      onChange={(e) => setConfig({ ...config, mainKeyword: e.target.value })}
-                      placeholder="Ví dụ: digital marketing, giảm cân..."
-                      className="w-full p-4 bg-[#0f172a] rounded-xl border border-gray-800 outline-none focus:ring-2 focus:ring-purple-900/50 text-white placeholder-gray-600"
-                    />
-                  </div>
                   <div>
                     <div className="flex justify-between mb-2">
                       <label className="font-bold text-gray-200">Số lượng mục (H2)</label>
@@ -889,6 +1017,17 @@ const App: React.FC = () => {
                   <div>
                     <label className="block font-bold text-gray-200 mb-2">Thông tin liên hệ:</label>
                     <textarea value={config.additionalInfo} onChange={(e) => setConfig({...config, additionalInfo: e.target.value})} placeholder="Nhập thêm yêu cầu..." className="w-full p-4 bg-[#0f172a] rounded-xl border border-gray-800 min-h-[100px] text-white placeholder-gray-600" />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-gray-200 mb-2">URL nhúng bản đồ (Map Embed URL):</label>
+                    <input 
+                      type="text"
+                      value={config.mapEmbedUrl || ''}
+                      onChange={(e) => setConfig({ ...config, mapEmbedUrl: e.target.value })}
+                      placeholder="Dán URL nhúng bản đồ Google Maps vào đây..."
+                      className="w-full p-4 bg-[#0f172a] rounded-xl border border-gray-800 outline-none focus:ring-2 focus:ring-purple-900/50 text-white placeholder-gray-600"
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">Lưu ý: Copy mã nhúng từ Google Maps {'>'} Chia sẻ {'>'} Nhúng bản đồ {'>'} Copy URL trong thuộc tính src.</p>
                   </div>
                 </div>
               </div>
@@ -1023,6 +1162,24 @@ const App: React.FC = () => {
                       )}
                     </div>
                   ))}
+                  
+                  {config.mapEmbedUrl && (
+                    <div className="mt-12 space-y-6 animate-in slide-in-from-bottom-4">
+                      <h3 className="text-2xl font-bold text-white border-l-4 border-purple-600 pl-4">Bản đồ chỉ đường</h3>
+                      <div className="w-full h-[450px] rounded-3xl overflow-hidden border border-gray-800 shadow-2xl">
+                        <iframe 
+                          src={config.mapEmbedUrl} 
+                          width="100%" 
+                          height="100%" 
+                          style={{ border: 0 }} 
+                          allowFullScreen={true} 
+                          loading="lazy" 
+                          referrerPolicy="no-referrer-when-downgrade"
+                          title="Google Maps Location"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* THÔNG SỐ BÀI VIẾT */}
