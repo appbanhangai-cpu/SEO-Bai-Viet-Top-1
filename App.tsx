@@ -628,7 +628,7 @@ const App: React.FC = () => {
             <section>
                 <h2>Bản đồ chỉ đường</h2>
                 <div style="width: 100%; height: 450px; border-radius: 12px; overflow: hidden; margin: 20px 0; border: 1px solid #e2e8f0;">
-                    <iframe src="${config.mapEmbedUrl}" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                    <iframe src="${config.mapEmbedUrl}" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy"></iframe>
                 </div>
             </section>
         ` : ''}
@@ -653,6 +653,18 @@ const App: React.FC = () => {
 
   const totalWords = article ? article.sections.reduce((acc, sec) => acc + (sec.content.split(/\s+/).filter(Boolean).length), 0) : 0;
   const totalImages = article ? article.sections.filter(sec => sec.image).length : 0;
+
+  const handleMapUrlChange = (value: string) => {
+    // If user pastes the whole iframe tag, extract the src
+    if (value.includes('<iframe')) {
+      const match = value.match(/src="([^"]+)"/);
+      if (match && match[1]) {
+        setConfig({ ...config, mapEmbedUrl: match[1] });
+        return;
+      }
+    }
+    setConfig({ ...config, mapEmbedUrl: value });
+  };
 
   const renderStepper = () => (
     <div className="flex items-center justify-center space-x-4 mb-12 select-none print:hidden">
@@ -1023,11 +1035,20 @@ const App: React.FC = () => {
                     <input 
                       type="text"
                       value={config.mapEmbedUrl || ''}
-                      onChange={(e) => setConfig({ ...config, mapEmbedUrl: e.target.value })}
-                      placeholder="Dán URL nhúng bản đồ Google Maps vào đây..."
-                      className="w-full p-4 bg-[#0f172a] rounded-xl border border-gray-800 outline-none focus:ring-2 focus:ring-purple-900/50 text-white placeholder-gray-600"
+                      onChange={(e) => handleMapUrlChange(e.target.value)}
+                      placeholder="Dán mã nhúng <iframe> hoặc URL nhúng vào đây..."
+                      className={`w-full p-4 bg-[#0f172a] rounded-xl border-2 outline-none focus:ring-2 focus:ring-purple-900/50 text-white placeholder-gray-600 transition-all ${
+                        config.mapEmbedUrl && !config.mapEmbedUrl.includes('google.com/maps/embed') && !config.mapEmbedUrl.includes('google.com/maps/reserve') 
+                        ? 'border-yellow-500/50' : 'border-gray-800'
+                      }`}
                     />
-                    <p className="text-[10px] text-gray-500 mt-1">Lưu ý: Copy mã nhúng từ Google Maps {'>'} Chia sẻ {'>'} Nhúng bản đồ {'>'} Copy URL trong thuộc tính src.</p>
+                    {config.mapEmbedUrl && !config.mapEmbedUrl.includes('google.com/maps/embed') && (
+                      <p className="text-[10px] text-yellow-500 mt-1 font-bold">
+                        ⚠️ Cảnh báo: URL này có vẻ không phải là mã nhúng (Embed). Bản đồ có thể không hiển thị. 
+                        Hãy chọn "Nhúng bản đồ" trên Google Maps để lấy mã đúng.
+                      </p>
+                    )}
+                    <p className="text-[10px] text-gray-500 mt-1">Lưu ý: Bạn có thể dán cả đoạn mã <code>&lt;iframe&gt;</code> từ Google Maps vào đây, hệ thống sẽ tự tách lấy link.</p>
                   </div>
                 </div>
               </div>
@@ -1172,9 +1193,8 @@ const App: React.FC = () => {
                           width="100%" 
                           height="100%" 
                           style={{ border: 0 }} 
-                          allowFullScreen={true} 
+                          allowFullScreen
                           loading="lazy" 
-                          referrerPolicy="no-referrer-when-downgrade"
                           title="Google Maps Location"
                         />
                       </div>
