@@ -57,6 +57,13 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('SEO_CONFIG', JSON.stringify(config));
   }, [config]);
+  useEffect(() => {
+    marked.setOptions({
+      breaks: true,
+      gfm: true
+    });
+  }, []);
+
   const [outline, setOutline] = useState<OutlineSection[]>([]);
   const [article, setArticle] = useState<GeneratedArticle | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -297,23 +304,24 @@ const App: React.FC = () => {
           <meta charset="UTF-8">
           <title>${article.title}</title>
           <style>
-              body { font-family: 'Arial', sans-serif; line-height: 1.6; }
-              h1 { color: #7c3aed; text-align: center; font-size: 24pt; margin-bottom: 20pt; }
-              h2 { color: #1e293b; border-bottom: 2px solid #7c3aed; padding-bottom: 5pt; margin-top: 25pt; font-size: 18pt; }
-              p { margin-bottom: 15pt; font-size: 12pt; }
-              img { width: 600px; display: block; margin: 20pt auto; }
+              body { font-family: 'Arial', sans-serif; line-height: 1.4; color: #333; }
+              h1 { color: #7c3aed; text-align: center; font-size: 20pt; margin-bottom: 12pt; }
+              h2 { color: #1e293b; border-bottom: 1px solid #7c3aed; padding-bottom: 2pt; margin-top: 15pt; font-size: 14pt; }
+              p { margin-bottom: 8pt; font-size: 11pt; }
+              img { width: 500px; height: auto; display: block; margin: 10pt auto; }
+              .section { margin-bottom: 15pt; }
           </style>
       </head>
       <body>
           <h1>${article.title}</h1>
           ${article.sections.map(s => `
-              <div style="margin-bottom: 30pt;">
+              <div class="section">
                   <h2>${s.title}</h2>
-                  ${s.image ? `<img src="${s.image}" width="600" />` : ''}
-                  <div style="font-size: 12pt;">${marked.parse(s.content)}</div>
+                  ${s.image ? `<div style="text-align: center; margin: 10pt 0;"><img src="${s.image}" width="500" /></div>` : ''}
+                  <div style="font-size: 11pt;">${marked.parse(s.content)}</div>
               </div>
           `).join("")}
-          <div style="margin-top: 50pt; text-align: center; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 20pt;">
+          <div style="margin-top: 40pt; text-align: center; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 15pt;">
               <p>Bài viết được tạo bởi SEO Writer by Mr Thoan</p>
               <p style="color: #22c55e; font-weight: bold;">Ủng hộ tác giả cốc cafe: 0988771339 (MB Bank)</p>
           </div>
@@ -445,51 +453,53 @@ const App: React.FC = () => {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
         body { 
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
-          line-height: 1.8; 
+          line-height: 1.5; 
           color: #1e293b; 
-          max-width: 900px; 
+          max-width: 800px; 
           margin: 0 auto; 
-          padding: 60px 20px; 
+          padding: 30px 20px; 
           background-color: #f8fafc; 
         }
         .container { 
           background: white; 
-          padding: 50px; 
-          border-radius: 24px; 
-          box-shadow: 0 10px 50px rgba(0,0,0,0.05); 
+          padding: 30px; 
+          border-radius: 16px; 
+          box-shadow: 0 10px 30px rgba(0,0,0,0.05); 
           border: 1px solid #e2e8f0;
         }
         h1 { 
           color: #7c3aed; 
           text-align: center; 
-          font-size: 3rem; 
-          margin-bottom: 50px; 
+          font-size: 2.25rem; 
+          margin-bottom: 30px; 
           line-height: 1.2;
           font-weight: 800;
         }
         h2 { 
           color: #0f172a; 
-          border-left: 6px solid #7c3aed; 
-          padding-left: 20px; 
-          margin-top: 60px; 
-          font-size: 2rem; 
+          border-left: 5px solid #7c3aed; 
+          padding-left: 15px; 
+          margin-top: 30px; 
+          margin-bottom: 15px;
+          font-size: 1.5rem; 
           font-weight: 700;
         }
         p { 
-          margin-bottom: 25px; 
-          font-size: 1.15rem; 
+          margin-bottom: 15px; 
+          font-size: 1.05rem; 
           color: #334155; 
         }
         img { 
           width: 100%; 
+          max-width: 100%;
           height: auto; 
-          border-radius: 20px; 
-          margin: 40px 0; 
-          box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
+          border-radius: 12px; 
+          margin: 20px 0; 
+          box-shadow: 0 10px 20px rgba(0,0,0,0.1); 
           display: block; 
         }
         .content {
-          white-space: pre-wrap;
+          /* white-space: pre-wrap; REMOVED to avoid double spacing with marked */
         }
         .footer { 
           margin-top: 80px; 

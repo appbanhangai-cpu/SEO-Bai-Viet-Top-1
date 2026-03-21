@@ -148,11 +148,15 @@ export const generateArticleContent = async (topic: string, config: SEOConfig, o
   - Sử dụng định dạng Markdown cho các tiêu đề (H2, H3), danh sách, và nhấn mạnh (bold/italic).
   - Đảm bảo nội dung độc nhất, hữu ích và có giá trị cao cho người đọc.
   
-  Hãy trả về kết quả dưới dạng JSON với cấu trúc:
+  - Hãy trả về kết quả dưới dạng JSON với cấu trúc:
   {
     "title": "Tiêu đề bài viết hấp dẫn (kèm emoji)",
     "sections": [
-      { "title": "Tiêu đề mục", "content": "Nội dung chi tiết mục này (Markdown, BẮT BUỘC có xuống dòng giữa các đoạn và sử dụng danh sách cho các ý liệt kê, kèm emoji)" },
+      { 
+        "title": "Tiêu đề mục", 
+        "content": "Nội dung chi tiết mục này (Markdown, BẮT BUỘC có xuống dòng giữa các đoạn và sử dụng danh sách cho các ý liệt kê, kèm emoji)",
+        "prompt": "Mô tả chi tiết bối cảnh hình ảnh (tiếng Việt), bao gồm các chi tiết cụ thể từ nội dung (như địa chỉ, tên riêng, đặc điểm sản phẩm) để AI tạo ảnh chính xác nhất."
+      },
       ...
     ],
     "metaDescription": "Mô tả meta chuẩn SEO (150-160 ký tự)",
@@ -178,9 +182,10 @@ export const generateArticleContent = async (topic: string, config: SEOConfig, o
                 type: Type.OBJECT,
                 properties: {
                   title: { type: Type.STRING },
-                  content: { type: Type.STRING }
+                  content: { type: Type.STRING },
+                  prompt: { type: Type.STRING }
                 },
-                required: ["title", "content"]
+                required: ["title", "content", "prompt"]
               }
             },
             metaDescription: { type: Type.STRING },
@@ -199,7 +204,8 @@ export const generateArticleContent = async (topic: string, config: SEOConfig, o
       sections: result.sections.map((s: any, i: number) => ({
         id: `gen-section-${i}`,
         title: s.title,
-        content: s.content
+        content: s.content,
+        prompt: s.prompt
       })),
       metaDescription: result.metaDescription,
       keywords: result.keywords,
@@ -218,7 +224,8 @@ export const generateArticleContent = async (topic: string, config: SEOConfig, o
       sections: result.sections.map((s: any, i: number) => ({
         id: `gen-section-${i}`,
         title: s.title,
-        content: s.content
+        content: s.content,
+        prompt: s.prompt
       })),
       metaDescription: result.metaDescription,
       keywords: result.keywords,
@@ -233,17 +240,35 @@ export const generateAIImage = async (prompt: string, productImage?: string): Pr
   if (geminiKey) {
     try {
       const ai = new GoogleGenAI({ apiKey: geminiKey });
+      
+      const parts: any[] = [
+        { text: `Tạo một hình ảnh minh họa SIÊU ĐẸP, nghệ thuật và có tính thẩm mỹ cực cao cho bài viết SEO. 
+        Chủ đề: ${prompt}. 
+        Yêu cầu kỹ thuật: Hình ảnh sắc nét 4K, màu sắc rực rỡ và hài hòa, bố cục hiện đại theo phong cách nhiếp ảnh chuyên nghiệp (Cinematic lighting) hoặc minh họa 3D Digital Art tinh tế. 
+        LƯU Ý QUAN TRỌNG: 
+        1. Hình ảnh phải bám sát các chi tiết trong mô tả (như địa chỉ, tên thương hiệu, bối cảnh). 
+        2. Nếu có chữ trong ảnh, phải viết ĐÚNG CHÍNH TẢ các thông tin được cung cấp. 
+        3. Tránh các chi tiết kỳ dị, biến dạng, mờ nhòe hoặc không tự nhiên. 
+        ${productImage ? `4. QUAN TRỌNG NHẤT: Hãy tích hợp sản phẩm/người trong ảnh đính kèm vào bối cảnh này một cách tự nhiên nhất. Sản phẩm phải là tâm điểm của bức ảnh, được đặt trong không gian sang trọng và chuyên nghiệp.` : ''}` }
+      ];
+
+      if (productImage) {
+        // Extract base64 data and mimeType
+        const mimeTypeMatch = productImage.match(/^data:(image\/[a-zA-Z]+);base64,/);
+        const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/png';
+        const base64Data = productImage.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+        
+        parts.push({
+          inlineData: {
+            data: base64Data,
+            mimeType: mimeType
+          }
+        });
+      }
+
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [
-            { text: `Tạo một hình ảnh minh họa SIÊU ĐẸP, nghệ thuật và có tính thẩm mỹ cực cao cho bài viết SEO. 
-            Chủ đề: ${prompt}. 
-            Yêu cầu kỹ thuật: Hình ảnh sắc nét 4K, màu sắc rực rỡ và hài hòa, bố cục hiện đại theo phong cách nhiếp ảnh chuyên nghiệp (Cinematic lighting) hoặc minh họa 3D Digital Art tinh tế. 
-            Tránh các chi tiết kỳ dị, biến dạng, mờ nhòe hoặc không tự nhiên. Hình ảnh phải trông thật chuyên nghiệp và thu hút ánh nhìn ngay lập tức.
-            ${productImage ? `Hãy lấy cảm hứng từ sản phẩm này và tích hợp nó một cách tự nhiên, sang trọng: ${productImage}` : ''}` }
-          ]
-        },
+        contents: { parts },
         config: {
           imageConfig: {
             aspectRatio: "16:9",
