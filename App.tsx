@@ -53,7 +53,13 @@ const App: React.FC = () => {
   const [showQRModal, setShowQRModal] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showKeyInput, setShowKeyInput] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const key = localStorage.getItem('GEMINI_API_KEY');
+    setHasApiKey(!!key);
+  }, []);
 
   const bgOptions = [
     { name: 'Xanh Đen', color: '#0f172a' },
@@ -83,25 +89,31 @@ const App: React.FC = () => {
   const prevStep = () => setStep(prev => Math.max(prev - 1, 1));
 
   const handleOpenKeySelector = async () => {
-    if (typeof window !== 'undefined' && window.aistudio) {
-      await window.aistudio.openSelectKey();
-      setErrorState(null);
-    } else {
-      setShowKeyInput(true);
-      setErrorState({
-        message: "Để sử dụng trên Vercel, bạn cần cấu hình GEMINI_API_KEY. Bạn có thể nhập API Key cá nhân vào ô dưới đây để lưu vào trình duyệt.",
-        isQuota: true // Set to true to show the button/input
-      });
+    setShowKeyInput(true);
+  };
+
+  const handlePasteKey = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setApiKeyInput(text);
+    } catch (err) {
+      console.error('Failed to read clipboard', err);
     }
+  };
+
+  const handleRemoveKey = () => {
+    localStorage.removeItem('GEMINI_API_KEY');
+    setHasApiKey(false);
+    setApiKeyInput('');
+    window.location.reload();
   };
 
   const handleSaveKey = () => {
     if (apiKeyInput.trim()) {
       localStorage.setItem('GEMINI_API_KEY', apiKeyInput.trim());
+      setHasApiKey(true);
       setShowKeyInput(false);
-      setErrorState(null);
-      // Reload or re-trigger generation if needed, but for now just clear error
-      window.location.reload(); // Simplest way to re-init everything with new key
+      window.location.reload();
     }
   };
 
@@ -532,8 +544,20 @@ const App: React.FC = () => {
 
 
 
-          {/* API Key Button - Only show in AI Studio or if needed */}
-          {(typeof window !== 'undefined' && window.aistudio) ? (
+          {/* API Key Button */}
+          {hasApiKey ? (
+            <button 
+              onClick={handleOpenKeySelector}
+              className="group relative flex items-center justify-center w-10 h-10 rounded-xl bg-green-500 shadow-[0_4px_0_0_rgba(21,128,61,1)] active:shadow-none active:translate-y-[4px] transition-all duration-75"
+              title="Quản lý API Key (Đã nạp)"
+            >
+              <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent rounded-xl pointer-events-none"></div>
+              <Key size={20} className="text-white drop-shadow-md" />
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full flex items-center justify-center shadow-sm">
+                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+              </div>
+            </button>
+          ) : (
             <button 
               onClick={handleOpenKeySelector}
               className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-gray-700 hover:border-purple-400 hover:text-purple-400 transition-all bg-[#1e293b]"
@@ -542,11 +566,6 @@ const App: React.FC = () => {
               <Key size={14} />
               <span className="text-xs">Nạp API Key</span>
             </button>
-          ) : (
-            <div className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-gray-800 bg-[#0f172a] text-gray-500">
-              <Check size={12} className="text-green-500" />
-              <span className="text-[10px] uppercase tracking-wider font-bold">Vercel Mode</span>
-            </div>
           )}
           <span className="hidden lg:inline border-l pl-3 border-gray-700">Hỗ trợ: 0988771339</span>
           <div className="relative group">
@@ -937,6 +956,104 @@ const App: React.FC = () => {
           <p className="mt-1">Powered by Google Gemini 3 Flash & Nano Banana</p>
         </div>
       </footer>
+
+      {/* API Key Management Modal */}
+      {showKeyInput && (
+        <div 
+          className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300"
+          onClick={() => setShowKeyInput(false)}
+        >
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="bg-[#1a0505] p-8 rounded-[2rem] border border-red-900/30 shadow-2xl max-w-[480px] w-full relative overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors"
+              onClick={() => setShowKeyInput(false)}
+            >
+              <X size={24} />
+            </button>
+
+            <h3 className="text-2xl font-bold text-white mb-6">Quản lý API Key</h3>
+            
+            <div className="space-y-4 mb-8">
+              <p className="text-gray-300 text-sm leading-relaxed">
+                Nếu gặp lỗi hạn ngạch, hãy lấy API Key từ một Google Cloud Project <span className="font-bold text-white italic">khác</span>.
+              </p>
+              <p className="text-yellow-500 text-sm font-bold leading-relaxed">
+                QUAN TRỌNG: Trong Project mới đó, bạn phải BẬT (Enable) "Generative Language API" thì key mới hoạt động. 
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-cyan-400 underline ml-1 hover:text-cyan-300 transition-colors">(Bật tại đây)</a>
+              </p>
+            </div>
+
+            {/* Input Group */}
+            <div className="relative flex items-center mb-4">
+              <div className="flex-1 bg-black/40 border border-red-900/50 rounded-l-xl overflow-hidden">
+                <input 
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="•••••••••••••••••••••••••••••••••••••••"
+                  className="w-full bg-transparent px-4 py-4 text-white outline-none placeholder-gray-700"
+                />
+              </div>
+              <button 
+                onClick={handlePasteKey}
+                className="bg-[#2a0a0a] border border-l-0 border-red-900/50 px-6 py-4 text-white font-bold hover:bg-[#3a0a0a] transition-all rounded-r-xl"
+              >
+                Dán
+              </button>
+            </div>
+
+            {/* Status */}
+            <div className="flex items-center space-x-2 mb-10">
+              <span className="text-gray-500 text-xs">Trạng thái:</span>
+              <div className="flex items-center space-x-1.5">
+                <div className={`w-2 h-2 rounded-full ${hasApiKey ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-gray-600'}`}></div>
+                <span className={`text-xs font-bold ${hasApiKey ? 'text-green-500' : 'text-gray-500'}`}>
+                  {hasApiKey ? 'Đang dùng Key Cá Nhân (Trả Phí)' : 'Chưa nạp Key'}
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <button 
+                onClick={handleRemoveKey}
+                className="text-gray-400 hover:text-white text-sm font-bold transition-colors text-left max-w-[120px] leading-tight"
+              >
+                Xóa & Dùng Key Mặc định
+              </button>
+
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => window.open('https://aistudio.google.com/app/apikey', '_blank')}
+                  className="px-4 py-3 rounded-xl border-2 border-orange-500/50 text-orange-400 font-bold text-sm hover:bg-orange-500/10 transition-all leading-tight text-center"
+                >
+                  Kiểm tra<br/>Hạn Ngạch
+                </button>
+
+                <button 
+                  onClick={() => window.open('https://aistudio.google.com/app/apikey', '_blank')}
+                  className="px-4 py-3 rounded-xl border-2 border-red-600/50 text-red-400 font-bold text-sm hover:bg-red-600/10 transition-all"
+                >
+                  Lấy<br/>API
+                </button>
+
+                <button 
+                  onClick={handleSaveKey}
+                  className="bg-red-600 hover:bg-red-700 text-white px-6 py-4 rounded-2xl font-bold shadow-lg shadow-red-900/20 transition-all active:scale-95"
+                >
+                  Lưu<br/>Key
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Image Zoom Modal */}
       {zoomedImage && (
