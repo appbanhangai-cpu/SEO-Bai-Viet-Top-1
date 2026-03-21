@@ -388,7 +388,7 @@ const App: React.FC = () => {
               h1 { color: #7c3aed; text-align: center; font-size: 20pt; margin-bottom: 12pt; }
               h2 { color: #1e293b; border-bottom: 1px solid #7c3aed; padding-bottom: 2pt; margin-top: 15pt; font-size: 14pt; }
               p { margin-bottom: 8pt; font-size: 11pt; }
-              img { width: auto; max-width: 100%; max-height: 400px; display: block; margin: 10pt auto; }
+              img { width: 15cm; height: 9cm; display: block; margin: 10pt auto; }
               .section { margin-bottom: 15pt; }
           </style>
       </head>
@@ -397,7 +397,7 @@ const App: React.FC = () => {
           ${article.sections.map(s => `
               <div class="section">
                   <h2>${s.title}</h2>
-                  ${s.image ? `<div style="text-align: center; margin: 10pt 0;"><img src="${s.image}" style="max-width: 100%; max-height: 400px;" /></div>` : ''}
+                  ${s.image ? `<div style="text-align: center; margin: 10pt 0;"><img src="${s.image}" style="width: 15cm; height: 9cm;" /></div>` : ''}
                   <div style="font-size: 11pt;">${marked.parse(s.content)}</div>
               </div>
           `).join("")}
