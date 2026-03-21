@@ -2,6 +2,9 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { asBlob } from 'html-docx-js-typescript';
 import { motion, AnimatePresence } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
+import { marked } from 'marked';
 import { Search, Settings, FileText, PenTool, ChevronRight, ChevronLeft, RotateCcw, ArrowUp, ArrowDown, Trash2, Plus, Download, Image as ImageIcon, FileOutput, Save, Check, RefreshCw, Copy, BarChart3, Key, Upload, X, Palette, QrCode } from 'lucide-react';
 import { AppStep, WritingStyle, SEOConfig, OutlineSection, GeneratedArticle, AIProvider } from './types';
 import { generateOutline, generateArticleContent, generateAIImage, regenerateOutlineTitle } from './services/aiService';
@@ -307,7 +310,7 @@ const App: React.FC = () => {
               <div style="margin-bottom: 30pt;">
                   <h2>${s.title}</h2>
                   ${s.image ? `<img src="${s.image}" width="600" />` : ''}
-                  <div style="white-space: pre-wrap; font-size: 12pt;">${s.content}</div>
+                  <div style="font-size: 12pt;">${marked.parse(s.content)}</div>
               </div>
           `).join("")}
           <div style="margin-top: 50pt; text-align: center; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 20pt;">
@@ -516,7 +519,7 @@ const App: React.FC = () => {
             <section>
                 <h2>${s.title}</h2>
                 ${s.image ? `<img src="${s.image}" alt="${s.title}" />` : ''}
-                <div class="content">${s.content}</div>
+                <div class="content">${marked.parse(s.content)}</div>
             </section>
         `).join('')}
         <div class="footer">
@@ -581,7 +584,6 @@ const App: React.FC = () => {
                   size={28} 
                   className="cursor-pointer hover:text-white transition-colors" 
                   onClick={() => setShowQRModal(true)}
-                  title="Quét mã QR ủng hộ"
                 />
               </p>
           </div>
@@ -763,7 +765,7 @@ const App: React.FC = () => {
                           onClick={() => {
                             let defaultModel = 'gemini-3-flash-preview';
                             if (p === AIProvider.OPENAI) defaultModel = 'gpt-4o';
-                            if (p === AIProvider.GROK) defaultModel = 'grok-2-latest';
+                            if (p === AIProvider.GROK) defaultModel = 'grok-2';
                             setConfig({ ...config, provider: p, model: defaultModel });
                           }}
                           className={`p-3 rounded-xl border-2 transition-all text-xs font-bold flex flex-col items-center gap-2 ${
@@ -803,8 +805,8 @@ const App: React.FC = () => {
                       )}
                       {config.provider === AIProvider.GROK && (
                         <>
-                          <option value="grok-2-latest">Grok-2 (Mới nhất)</option>
-                          <option value="grok-2-1212">Grok-2 (1212)</option>
+                          <option value="grok-2">Grok-2 (Mới nhất)</option>
+                          <option value="grok-2-mini">Grok-2 Mini (Nhanh, Rẻ)</option>
                           <option value="grok-beta">Grok Beta</option>
                         </>
                       )}
@@ -1004,7 +1006,9 @@ const App: React.FC = () => {
                       {isEditing ? (
                         <textarea className="w-full text-lg min-h-[200px] p-4 bg-[#0f172a] border border-gray-800 rounded-xl text-white outline-none" value={sec.content} onChange={(e) => updateArticleField(idx, 'content', e.target.value)} />
                       ) : (
-                        <div className="text-lg whitespace-pre-wrap">{sec.content}</div>
+                        <div className="text-lg markdown-content">
+                          <ReactMarkdown remarkPlugins={[remarkBreaks]}>{sec.content}</ReactMarkdown>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -1102,7 +1106,6 @@ const App: React.FC = () => {
               size={28} 
               className="cursor-pointer hover:text-white transition-colors" 
               onClick={() => setShowQRModal(true)}
-              title="Quét mã QR ủng hộ"
             />
           </p>
           <div className="h-px w-12 bg-gray-800"></div>
@@ -1365,6 +1368,14 @@ const App: React.FC = () => {
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+        
+        .markdown-content p { margin-bottom: 1.5rem; }
+        .markdown-content ul, .markdown-content ol { margin-bottom: 1.5rem; padding-left: 1.5rem; }
+        .markdown-content li { margin-bottom: 0.5rem; }
+        .markdown-content li::marker { color: #a855f7; font-weight: bold; }
+        .markdown-content strong { color: #f3f4f6; font-weight: 700; }
+        .markdown-content h4 { font-size: 1.25rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 1rem; color: #f3f4f6; }
+
         @media print { 
           body { background: white !important; color: black !important; } 
           main { border: none !important; width: 100% !important; margin: 0 !important; background: white !important; } 

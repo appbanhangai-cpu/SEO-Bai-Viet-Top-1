@@ -15,10 +15,13 @@
     "express": "^5.2.1",
     "html-docx-js-typescript": "^0.1.5",
     "lucide-react": "^0.562.0",
+    "marked": "^17.0.5",
     "motion": "^12.38.0",
     "openai": "^6.32.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "react-markdown": "^10.1.0",
+    "remark-breaks": "^4.0.0",
     "tsx": "^4.21.0"
   },
   "devDependencies": {

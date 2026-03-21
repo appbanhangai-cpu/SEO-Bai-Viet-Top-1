@@ -128,26 +128,31 @@ export const regenerateOutlineTitle = async (currentTitle: string, topic: string
 
 export const generateArticleContent = async (topic: string, config: SEOConfig, outline: OutlineSection[]): Promise<GeneratedArticle> => {
   const sectionsPrompt = outline.map(s => `- ${s.title}`).join('\n');
-  const prompt = `Bạn là một chuyên gia SEO và Content Writer hàng đầu. Hãy viết một bài viết chuyên sâu về chủ đề: "${topic}".
+  const prompt = `Bạn là một chuyên gia SEO và Content Writer hàng đầu. Hãy viết một bài viết chuyên sâu, sinh động và cực kỳ hấp dẫn về chủ đề: "${topic}".
   
   Cấu trúc bài viết dựa trên dàn ý sau:
   ${sectionsPrompt}
   
-  Yêu cầu:
+  Yêu cầu về nội dung và trình bày (BẮT BUỘC):
   - Phong cách viết: ${config.style}
   - Từ khóa chính cần tối ưu: ${config.mainKeyword}
   - Ngôn ngữ: ${config.language}
   - Thông tin liên hệ: ${config.additionalInfo}
   
-  Hãy viết nội dung chi tiết cho từng mục trong dàn ý. Mỗi mục cần có ít nhất 2-3 đoạn văn bản chất lượng.
-  Sử dụng định dạng Markdown cho các tiêu đề, danh sách, và nhấn mạnh.
-  Đảm bảo nội dung độc nhất, hữu ích và có giá trị cao cho người đọc.
+  - **Sử dụng biểu tượng cảm xúc (emojis)** phù hợp ở đầu các đoạn văn hoặc các ý quan trọng để bài viết thêm sinh động.
+  - **TRÌNH BÀY THOÁNG ĐÃNG (QUAN TRỌNG)**: 
+    + Sử dụng xuống dòng thường xuyên. 
+    + Chia nhỏ các ý thành các đoạn văn ngắn (mỗi đoạn không quá 3 câu).
+    + **BẮT BUỘC sử dụng danh sách Markdown (dấu gạch ngang - hoặc số 1.) cho các ý liệt kê**. Mỗi ý phải nằm trên một dòng riêng biệt. Tuyệt đối không viết các ý liệt kê dính liền nhau trong một đoạn văn.
+  - **Nội dung lôi cuốn**: Sử dụng ngôn từ mạnh mẽ, đặt câu hỏi gợi mở, và tạo sự kết nối với người đọc.
+  - Sử dụng định dạng Markdown cho các tiêu đề (H2, H3), danh sách, và nhấn mạnh (bold/italic).
+  - Đảm bảo nội dung độc nhất, hữu ích và có giá trị cao cho người đọc.
   
   Hãy trả về kết quả dưới dạng JSON với cấu trúc:
   {
-    "title": "Tiêu đề bài viết hấp dẫn",
+    "title": "Tiêu đề bài viết hấp dẫn (kèm emoji)",
     "sections": [
-      { "title": "Tiêu đề mục", "content": "Nội dung chi tiết mục này (Markdown)" },
+      { "title": "Tiêu đề mục", "content": "Nội dung chi tiết mục này (Markdown, BẮT BUỘC có xuống dòng giữa các đoạn và sử dụng danh sách cho các ý liệt kê, kèm emoji)" },
       ...
     ],
     "metaDescription": "Mô tả meta chuẩn SEO (150-160 ký tự)",
@@ -223,34 +228,58 @@ export const generateArticleContent = async (topic: string, config: SEOConfig, o
 };
 
 export const generateAIImage = async (prompt: string, productImage?: string): Promise<string> => {
-  // Image generation currently only supported via Gemini (Imagen)
-  const apiKey = getApiKey(AIProvider.GEMINI);
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured for image generation.');
-  
-  const ai = new GoogleGenAI({ apiKey });
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: {
-      parts: [
-        { text: `Tạo một hình ảnh minh họa chuyên nghiệp cho bài viết SEO. 
-        Mô tả: ${prompt}. 
-        Phong cách: Hiện đại, sạch sẽ, phù hợp với blog doanh nghiệp.
-        ${productImage ? `Hãy lấy cảm hứng từ sản phẩm này: ${productImage}` : ''}` }
-      ]
-    },
-    config: {
-      imageConfig: {
-        aspectRatio: "16:9",
-        imageSize: "1K"
-      }
-    }
-  });
+  // Try Gemini first
+  const geminiKey = getApiKey(AIProvider.GEMINI);
+  if (geminiKey) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: geminiKey });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+          parts: [
+            { text: `Tạo một hình ảnh minh họa SIÊU ĐẸP, nghệ thuật và có tính thẩm mỹ cực cao cho bài viết SEO. 
+            Chủ đề: ${prompt}. 
+            Yêu cầu kỹ thuật: Hình ảnh sắc nét 4K, màu sắc rực rỡ và hài hòa, bố cục hiện đại theo phong cách nhiếp ảnh chuyên nghiệp (Cinematic lighting) hoặc minh họa 3D Digital Art tinh tế. 
+            Tránh các chi tiết kỳ dị, biến dạng, mờ nhòe hoặc không tự nhiên. Hình ảnh phải trông thật chuyên nghiệp và thu hút ánh nhìn ngay lập tức.
+            ${productImage ? `Hãy lấy cảm hứng từ sản phẩm này và tích hợp nó một cách tự nhiên, sang trọng: ${productImage}` : ''}` }
+          ]
+        },
+        config: {
+          imageConfig: {
+            aspectRatio: "16:9",
+            imageSize: "1K"
+          }
+        }
+      });
 
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
+      for (const part of response.candidates?.[0]?.content?.parts || []) {
+        if (part.inlineData) {
+          return `data:image/png;base64,${part.inlineData.data}`;
+        }
+      }
+    } catch (err) {
+      console.error("Gemini image generation failed:", err);
     }
   }
 
-  throw new Error('Không thể tạo hình ảnh');
+  // Fallback to OpenAI if available
+  const openaiKey = getApiKey(AIProvider.OPENAI);
+  if (openaiKey) {
+    try {
+      const openai = new OpenAI({ apiKey: openaiKey, dangerouslyAllowBrowser: true });
+      const response = await openai.images.generate({
+        model: "dall-e-3",
+        prompt: `Stunning, high-end professional and artistic SEO article illustration. Subject: ${prompt}. Cinematic lighting, sharp focus 4K, harmonious vibrant colors, modern composition, professional photography or refined 3D digital art style. Avoid distorted or unnatural details. The image must look premium and highly engaging. ${productImage ? `Inspired by product: ${productImage}` : ''}`,
+        n: 1,
+        size: "1024x1024",
+      });
+      if (response.data[0].url) {
+        return response.data[0].url;
+      }
+    } catch (err) {
+      console.error("OpenAI image generation failed:", err);
+    }
+  }
+  
+  throw new Error('Không thể tạo hình ảnh bằng bất kỳ nhà cung cấp nào có sẵn.');
 };
