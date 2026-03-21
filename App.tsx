@@ -85,7 +85,14 @@ const App: React.FC = () => {
     loadCustomImages();
   }, []);
 
-  const nextStep = () => setStep(prev => Math.min(prev + 1, 4));
+  const nextStep = () => {
+    if (step === 1 && !hasApiKey) {
+      setShowKeyInput(true);
+      // We can also set a temporary message or just rely on the modal opening
+      return;
+    }
+    setStep(prev => Math.min(prev + 1, 4));
+  };
   const prevStep = () => setStep(prev => Math.max(prev - 1, 1));
 
   const handleOpenKeySelector = async () => {
@@ -980,6 +987,13 @@ const App: React.FC = () => {
             <h3 className="text-2xl font-bold text-white mb-6">Quản lý API Key</h3>
             
             <div className="space-y-4 mb-8">
+              {!hasApiKey && (
+                <div className="bg-red-500/20 border border-red-500 p-3 rounded-lg mb-4 animate-bounce">
+                  <p className="text-red-400 text-sm font-bold text-center">
+                    ⚠️ Bạn hãy Nạp API Key để tiếp tục!
+                  </p>
+                </div>
+              )}
               <p className="text-gray-300 text-sm leading-relaxed">
                 Nếu gặp lỗi hạn ngạch, hãy lấy API Key từ một Google Cloud Project <span className="font-bold text-white italic">khác</span>.
               </p>
