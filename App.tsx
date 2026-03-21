@@ -1362,16 +1362,13 @@ const App: React.FC = () => {
             ) : (
               <>
                 <div className="mb-4">
-                  <div className="w-14 h-14 bg-green-500/10 rounded-xl flex items-center justify-center mx-auto mb-3">
-                    <QrCode size={28} className="text-green-500" />
-                  </div>
                   <h3 className="text-xl font-bold text-white mb-1 leading-tight">Ủng hộ tác giả cốc cafe qua mã QR:</h3>
                   <p className="text-gray-400 text-xs">Quét mã QR bên dưới để ủng hộ tác giả nhé!</p>
                 </div>
                 
                 <div className="bg-white p-3 rounded-2xl mb-4 inline-block shadow-inner">
                   <img 
-                    src="https://img.vietqr.io/image/MB-0988771339-compact2.jpg?addInfo=Ung%20ho%20tac%20gia%20coc%20Cafe&accountName=Nguyen%20Viet%20Thoan" 
+                    src="https://img.vietqr.io/image/MB-0988771339-qr_only.jpg?addInfo=Ung%20ho%20tac%20gia%20coc%20Cafe" 
                     alt="MB Bank QR Code" 
                     className="w-56 h-auto mx-auto"
                   />
