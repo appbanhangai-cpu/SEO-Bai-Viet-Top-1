@@ -18,6 +18,12 @@ export enum WritingStyle {
   CREATIVE = 'SEO Sáng Tạo'
 }
 
+export enum AIProvider {
+  GEMINI = 'Google Gemini',
+  OPENAI = 'ChatGPT (OpenAI)',
+  GROK = 'Grok (xAI)'
+}
+
 export enum AppStep {
   TOPIC = 1,
   CONFIG = 2,
@@ -33,6 +39,8 @@ export interface SEOConfig {
   language: string;
   additionalInfo: string;
   productImage?: string; // Dữ liệu ảnh sản phẩm dạng base64
+  provider: AIProvider;
+  model: string;
 }
 
 export interface OutlineSection {

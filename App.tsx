@@ -3,8 +3,8 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { asBlob } from 'html-docx-js-typescript';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Settings, FileText, PenTool, ChevronRight, ChevronLeft, RotateCcw, ArrowUp, ArrowDown, Trash2, Plus, Download, Image as ImageIcon, FileOutput, Save, Check, RefreshCw, Copy, BarChart3, Key, Upload, X, Palette, QrCode } from 'lucide-react';
-import { AppStep, WritingStyle, SEOConfig, OutlineSection, GeneratedArticle } from './types';
-import { generateOutline, generateArticleContent, generateAIImage, regenerateOutlineTitle } from './services/geminiService';
+import { AppStep, WritingStyle, SEOConfig, OutlineSection, GeneratedArticle, AIProvider } from './types';
+import { generateOutline, generateArticleContent, generateAIImage, regenerateOutlineTitle } from './services/aiService';
 import { generateAppImages } from './services/imageGenerator';
 
 const STYLE_DESCRIPTIONS: Record<WritingStyle, string> = {
@@ -29,15 +29,31 @@ const STYLE_DESCRIPTIONS: Record<WritingStyle, string> = {
 const App: React.FC = () => {
   const [step, setStep] = useState<AppStep>(AppStep.TOPIC);
   const [topic, setTopic] = useState('');
-  const [config, setConfig] = useState<SEOConfig>({
-    style: WritingStyle.GUIDE,
-    mainKeyword: '',
-    h2Count: 5,
-    wordCount: 1500,
-    language: 'Tiếng Việt',
-    additionalInfo: '',
-    productImage: undefined
+  const [config, setConfig] = useState<SEOConfig>(() => {
+    const saved = localStorage.getItem('SEO_CONFIG');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse saved config", e);
+      }
+    }
+    return {
+      style: WritingStyle.GUIDE,
+      mainKeyword: '',
+      h2Count: 5,
+      wordCount: 1500,
+      language: 'Tiếng Việt',
+      additionalInfo: '',
+      productImage: undefined,
+      provider: AIProvider.GEMINI,
+      model: 'gemini-3-flash-preview'
+    };
   });
+
+  useEffect(() => {
+    localStorage.setItem('SEO_CONFIG', JSON.stringify(config));
+  }, [config]);
   const [outline, setOutline] = useState<OutlineSection[]>([]);
   const [article, setArticle] = useState<GeneratedArticle | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,13 +69,31 @@ const App: React.FC = () => {
   const [showQRModal, setShowQRModal] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showKeyInput, setShowKeyInput] = useState(false);
+  const [selectedKeyProvider, setSelectedKeyProvider] = useState<AIProvider>(AIProvider.GEMINI);
   const [hasApiKey, setHasApiKey] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const key = localStorage.getItem('GEMINI_API_KEY');
+    const keyMap: Record<AIProvider, string> = {
+      [AIProvider.GEMINI]: 'GEMINI_API_KEY',
+      [AIProvider.OPENAI]: 'OPENAI_API_KEY',
+      [AIProvider.GROK]: 'GROK_API_KEY'
+    };
+    const key = localStorage.getItem(keyMap[config.provider]);
     setHasApiKey(!!key);
-  }, []);
+  }, [config.provider]);
+
+  useEffect(() => {
+    const keyMap: Record<AIProvider, string> = {
+      [AIProvider.GEMINI]: 'GEMINI_API_KEY',
+      [AIProvider.OPENAI]: 'OPENAI_API_KEY',
+      [AIProvider.GROK]: 'GROK_API_KEY'
+    };
+    const key = localStorage.getItem(keyMap[selectedKeyProvider]);
+    if (showKeyInput) {
+      setApiKeyInput(key || '');
+    }
+  }, [selectedKeyProvider, showKeyInput]);
 
   const bgOptions = [
     { name: 'Xanh Đen', color: '#0f172a' },
@@ -86,11 +120,6 @@ const App: React.FC = () => {
   }, []);
 
   const nextStep = () => {
-    if (step === 1 && !hasApiKey) {
-      setShowKeyInput(true);
-      // We can also set a temporary message or just rely on the modal opening
-      return;
-    }
     setStep(prev => Math.min(prev + 1, 4));
   };
   const prevStep = () => setStep(prev => Math.max(prev - 1, 1));
@@ -109,7 +138,12 @@ const App: React.FC = () => {
   };
 
   const handleRemoveKey = () => {
-    localStorage.removeItem('GEMINI_API_KEY');
+    const keyMap: Record<AIProvider, string> = {
+      [AIProvider.GEMINI]: 'GEMINI_API_KEY',
+      [AIProvider.OPENAI]: 'OPENAI_API_KEY',
+      [AIProvider.GROK]: 'GROK_API_KEY'
+    };
+    localStorage.removeItem(keyMap[selectedKeyProvider]);
     setHasApiKey(false);
     setApiKeyInput('');
     window.location.reload();
@@ -117,7 +151,12 @@ const App: React.FC = () => {
 
   const handleSaveKey = () => {
     if (apiKeyInput.trim()) {
-      localStorage.setItem('GEMINI_API_KEY', apiKeyInput.trim());
+      const keyMap: Record<AIProvider, string> = {
+        [AIProvider.GEMINI]: 'GEMINI_API_KEY',
+        [AIProvider.OPENAI]: 'OPENAI_API_KEY',
+        [AIProvider.GROK]: 'GROK_API_KEY'
+      };
+      localStorage.setItem(keyMap[selectedKeyProvider], apiKeyInput.trim());
       setHasApiKey(true);
       setShowKeyInput(false);
       window.location.reload();
@@ -141,6 +180,11 @@ const App: React.FC = () => {
   };
 
   const handleGenerateOutline = async () => {
+    if (!hasApiKey) {
+      setErrorState({ message: "Bạn hãy Nạp API Key để tiếp tục!", isQuota: true });
+      setShowKeyInput(true);
+      return;
+    }
     setIsLoading(true);
     setErrorState(null);
     setProgressMsg('AI đang nghiên cứu chủ đề và xây dựng dàn ý...');
@@ -199,6 +243,11 @@ const App: React.FC = () => {
   };
 
   const handleGenerateArticle = async () => {
+    if (!hasApiKey) {
+      setErrorState({ message: "Bạn hãy Nạp API Key để tiếp tục!", isQuota: true });
+      setShowKeyInput(true);
+      return;
+    }
     setIsLoading(true);
     setErrorState(null);
     setProgressMsg('AI đang viết nội dung bài viết...');
@@ -704,6 +753,64 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
+                  {/* PHẦN CHỌN AI PROVIDER */}
+                  <div>
+                    <label className="block text-lg font-bold text-purple-400 mb-4">Nhà cung cấp AI</label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {Object.values(AIProvider).map((p) => (
+                        <button 
+                          key={p}
+                          onClick={() => {
+                            let defaultModel = 'gemini-3-flash-preview';
+                            if (p === AIProvider.OPENAI) defaultModel = 'gpt-4o';
+                            if (p === AIProvider.GROK) defaultModel = 'grok-2-latest';
+                            setConfig({ ...config, provider: p, model: defaultModel });
+                          }}
+                          className={`p-3 rounded-xl border-2 transition-all text-xs font-bold flex flex-col items-center gap-2 ${
+                            config.provider === p ? 'border-purple-500 bg-purple-900/20 text-white' : 'border-gray-800 bg-[#0f172a] text-gray-500'
+                          }`}
+                        >
+                          {p === AIProvider.GEMINI && <span className="text-xl">💎</span>}
+                          {p === AIProvider.OPENAI && <span className="text-xl">🤖</span>}
+                          {p === AIProvider.GROK && <span className="text-xl">🚀</span>}
+                          {p.split(' ')[0]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* PHẦN CHỌN MODEL */}
+                  <div>
+                    <label className="block font-bold text-gray-200 mb-2">Model AI</label>
+                    <select 
+                      value={config.model}
+                      onChange={(e) => setConfig({ ...config, model: e.target.value })}
+                      className="w-full p-4 bg-[#0f172a] rounded-xl border border-gray-800 outline-none focus:ring-2 focus:ring-purple-900/50 text-white"
+                    >
+                      {config.provider === AIProvider.GEMINI && (
+                        <>
+                          <option value="gemini-3-flash-preview">Gemini 3 Flash (Nhanh, Rẻ)</option>
+                          <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Thông minh nhất)</option>
+                          <option value="gemini-1.5-flash-latest">Gemini 1.5 Flash</option>
+                        </>
+                      )}
+                      {config.provider === AIProvider.OPENAI && (
+                        <>
+                          <option value="gpt-4o">GPT-4o (Toàn diện)</option>
+                          <option value="gpt-4o-mini">GPT-4o Mini (Tiết kiệm)</option>
+                          <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                        </>
+                      )}
+                      {config.provider === AIProvider.GROK && (
+                        <>
+                          <option value="grok-2-latest">Grok-2 (Mới nhất)</option>
+                          <option value="grok-2-1212">Grok-2 (1212)</option>
+                          <option value="grok-beta">Grok Beta</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
                   {/* PHẦN TẢI ẢNH SẢN PHẨM THỰC TẾ */}
                   <div>
                     <label className="block font-bold text-gray-200 mb-2">Ảnh SP hay hình ảnh cá nhân</label>
@@ -1002,7 +1109,7 @@ const App: React.FC = () => {
         </div>
         <div className="opacity-60">
           <p>© {new Date().getFullYear()} SEO Writer by Mr Thoan. All rights reserved.</p>
-          <p className="mt-1">Powered by Google Gemini 3 Flash & Nano Banana</p>
+          <p className="mt-1">Powered by {config.provider} ({config.model})</p>
         </div>
       </footer>
 
@@ -1026,23 +1133,69 @@ const App: React.FC = () => {
               <X size={24} />
             </button>
 
-            <h3 className="text-2xl font-bold text-white mb-6">Quản lý API Key</h3>
+            <h3 className="text-2xl font-bold text-white mb-2">Quản lý API Key</h3>
+            <p className="text-gray-500 text-xs mb-6">Cấu hình API Key cho từng nhà cung cấp để sử dụng dịch vụ.</p>
             
+            {/* Provider Selection for Key */}
+            <div className="flex bg-black/40 p-1 rounded-xl mb-6 border border-gray-800">
+              {Object.values(AIProvider).map((p) => {
+                const keyMap: Record<AIProvider, string> = {
+                  [AIProvider.GEMINI]: 'GEMINI_API_KEY',
+                  [AIProvider.OPENAI]: 'OPENAI_API_KEY',
+                  [AIProvider.GROK]: 'GROK_API_KEY'
+                };
+                const hasKey = !!localStorage.getItem(keyMap[p]);
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setSelectedKeyProvider(p)}
+                    className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all relative ${
+                      selectedKeyProvider === p ? 'bg-red-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    {p.split(' ')[0]}
+                    {hasKey && (
+                      <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full border border-black"></div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="space-y-4 mb-8">
-              {!hasApiKey && (
-                <div className="bg-red-500/20 border border-red-500 p-3 rounded-lg mb-4 animate-bounce">
-                  <p className="text-red-400 text-sm font-bold text-center">
-                    ⚠️ Bạn hãy Nạp API Key để tiếp tục!
-                  </p>
-                </div>
-              )}
+              {(() => {
+                const keyMap: Record<AIProvider, string> = {
+                  [AIProvider.GEMINI]: 'GEMINI_API_KEY',
+                  [AIProvider.OPENAI]: 'OPENAI_API_KEY',
+                  [AIProvider.GROK]: 'GROK_API_KEY'
+                };
+                const currentTabHasKey = !!localStorage.getItem(keyMap[selectedKeyProvider]);
+                if (!currentTabHasKey) {
+                  return (
+                    <div className="bg-red-500/20 border border-red-500 p-3 rounded-lg mb-4 animate-bounce">
+                      <p className="text-red-400 text-sm font-bold text-center">
+                        ⚠️ Bạn hãy Nạp API Key để tiếp tục!
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               <p className="text-gray-300 text-sm leading-relaxed">
-                Nếu gặp lỗi hạn ngạch, hãy lấy API Key từ một Google Cloud Project <span className="font-bold text-white italic">khác</span>.
+                {selectedKeyProvider === AIProvider.GEMINI ? (
+                  <>Nếu gặp lỗi hạn ngạch, hãy lấy API Key từ một Google Cloud Project <span className="font-bold text-white italic">khác</span>.</>
+                ) : selectedKeyProvider === AIProvider.OPENAI ? (
+                  <>Lấy API Key từ OpenAI Dashboard. Đảm bảo bạn có số dư trong tài khoản.</>
+                ) : (
+                  <>Lấy API Key từ xAI Console (Grok). API này tương thích với chuẩn OpenAI.</>
+                )}
               </p>
-              <p className="text-yellow-500 text-sm font-bold leading-relaxed">
-                QUAN TRỌNG: Trong Project mới đó, bạn phải BẬT (Enable) "Generative Language API" thì key mới hoạt động. 
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-cyan-400 underline ml-1 hover:text-cyan-300 transition-colors">(Bật tại đây)</a>
-              </p>
+              {selectedKeyProvider === AIProvider.GEMINI && (
+                <p className="text-yellow-500 text-sm font-bold leading-relaxed">
+                  QUAN TRỌNG: Trong Project mới đó, bạn phải BẬT (Enable) "Generative Language API" thì key mới hoạt động. 
+                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-cyan-400 underline ml-1 hover:text-cyan-300 transition-colors">(Bật tại đây)</a>
+                </p>
+              )}
             </div>
 
             {/* Input Group */}
@@ -1064,14 +1217,26 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            {/* Status */}
+              {/* Status */}
             <div className="flex items-center space-x-2 mb-10">
               <span className="text-gray-500 text-xs">Trạng thái:</span>
               <div className="flex items-center space-x-1.5">
-                <div className={`w-2 h-2 rounded-full ${hasApiKey ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-gray-600'}`}></div>
-                <span className={`text-xs font-bold ${hasApiKey ? 'text-green-500' : 'text-gray-500'}`}>
-                  {hasApiKey ? 'Đang dùng Key Cá Nhân (Trả Phí)' : 'Chưa nạp Key'}
-                </span>
+                {(() => {
+                  const keyMap: Record<AIProvider, string> = {
+                    [AIProvider.GEMINI]: 'GEMINI_API_KEY',
+                    [AIProvider.OPENAI]: 'OPENAI_API_KEY',
+                    [AIProvider.GROK]: 'GROK_API_KEY'
+                  };
+                  const currentTabHasKey = !!localStorage.getItem(keyMap[selectedKeyProvider]);
+                  return (
+                    <>
+                      <div className={`w-2 h-2 rounded-full ${currentTabHasKey ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-gray-600'}`}></div>
+                      <span className={`text-xs font-bold ${currentTabHasKey ? 'text-green-500' : 'text-gray-500'}`}>
+                        {currentTabHasKey ? 'Đang dùng Key Cá Nhân (Trả Phí)' : 'Chưa nạp Key'}
+                      </span>
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
@@ -1086,14 +1251,28 @@ const App: React.FC = () => {
 
               <div className="flex items-center gap-3">
                 <button 
-                  onClick={() => window.open('https://aistudio.google.com/app/apikey', '_blank')}
+                  onClick={() => {
+                    const url = selectedKeyProvider === AIProvider.GEMINI 
+                      ? 'https://aistudio.google.com/app/apikey' 
+                      : selectedKeyProvider === AIProvider.OPENAI 
+                        ? 'https://platform.openai.com/api-keys' 
+                        : 'https://console.x.ai/';
+                    window.open(url, '_blank');
+                  }}
                   className="px-4 py-3 rounded-xl border-2 border-orange-500/50 text-orange-400 font-bold text-sm hover:bg-orange-500/10 transition-all leading-tight text-center"
                 >
                   Kiểm tra<br/>Hạn Ngạch
                 </button>
 
                 <button 
-                  onClick={() => window.open('https://aistudio.google.com/app/apikey', '_blank')}
+                  onClick={() => {
+                    const url = selectedKeyProvider === AIProvider.GEMINI 
+                      ? 'https://aistudio.google.com/app/apikey' 
+                      : selectedKeyProvider === AIProvider.OPENAI 
+                        ? 'https://platform.openai.com/api-keys' 
+                        : 'https://console.x.ai/';
+                    window.open(url, '_blank');
+                  }}
                   className="px-4 py-3 rounded-xl border-2 border-red-600/50 text-red-400 font-bold text-sm hover:bg-red-600/10 transition-all"
                 >
                   Lấy<br/>API

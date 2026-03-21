@@ -16,6 +16,7 @@
     "html-docx-js-typescript": "^0.1.5",
     "lucide-react": "^0.562.0",
     "motion": "^12.38.0",
+    "openai": "^6.32.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "tsx": "^4.21.0"
