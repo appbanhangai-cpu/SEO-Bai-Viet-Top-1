@@ -74,12 +74,6 @@ const App: React.FC = () => {
         if (logoBase64) setCustomLogo(logoBase64);
       } catch (error: any) {
         console.error("Failed to generate custom images", error);
-        if (error.message.includes('GEMINI_API_KEY')) {
-          setErrorState({
-            message: "Chào mừng! Để bắt đầu, bạn cần cấu hình Gemini API Key. Vui lòng nhấp vào nút bên dưới.",
-            isQuota: true
-          });
-        }
       }
     };
     loadCustomImages();
@@ -546,7 +540,7 @@ const App: React.FC = () => {
               title="Cấu hình API Key cá nhân"
             >
               <Key size={14} />
-              <span className="text-xs">API Key</span>
+              <span className="text-xs">Nạp API Key</span>
             </button>
           ) : (
             <div className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-gray-800 bg-[#0f172a] text-gray-500">
@@ -574,54 +568,6 @@ const App: React.FC = () => {
         className="w-full max-w-4xl bg-[#1e293b] rounded-3xl shadow-2xl border border-gray-800 p-8 md:p-12 min-h-[500px] flex flex-col relative print:border-none print:shadow-none print:p-0"
       >
         {renderStepper()}
-
-        {errorState && (
-          <div className="mb-8 p-6 bg-red-900/20 border border-red-900/50 rounded-2xl animate-in fade-in slide-in-from-top-4 print:hidden">
-            <div className="flex items-start space-x-4">
-              <div className="p-2 bg-red-900/30 rounded-lg text-red-400 shrink-0">
-                <BarChart3 size={20} />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-red-200 font-bold mb-1">Thông báo hệ thống</h3>
-                <p className="text-red-400 text-sm leading-relaxed mb-4">{errorState.message}</p>
-                {errorState.isQuota && (
-                  <div className="space-y-4">
-                    {!showKeyInput ? (
-                      <button 
-                        onClick={handleOpenKeySelector}
-                        className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-md"
-                      >
-                        <Key size={16} />
-                        <span>Sử dụng API Key cá nhân</span>
-                      </button>
-                    ) : (
-                      <div className="flex flex-col md:flex-row gap-3">
-                        <input 
-                          type="password"
-                          value={apiKeyInput}
-                          onChange={(e) => setApiKeyInput(e.target.value)}
-                          placeholder="Nhập Gemini API Key của bạn..."
-                          className="flex-1 bg-black/40 border border-red-900/50 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-red-500"
-                        />
-                        <button 
-                          onClick={handleSaveKey}
-                          className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-bold text-sm transition-all shadow-md whitespace-nowrap"
-                        >
-                          Lưu Key
-                        </button>
-                      </div>
-                    )}
-                    <p className="text-xs text-red-400/70 italic">
-                      * Key sẽ được lưu an toàn trong trình duyệt của bạn (localStorage). 
-                      Lấy key miễn phí tại: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="underline hover:text-red-300">Google AI Studio</a>
-                    </p>
-                  </div>
-                )}
-              </div>
-              <button onClick={() => setErrorState(null)} className="text-red-400 hover:text-red-200"><Trash2 size={18} /></button>
-            </div>
-          </div>
-        )}
 
         {isLoading ? (
           <div className="flex-1 flex flex-col items-center justify-center py-20">
