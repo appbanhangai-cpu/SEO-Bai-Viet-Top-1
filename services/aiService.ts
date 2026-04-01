@@ -247,14 +247,14 @@ export const generateAIImage = async (prompt: string, productImage?: string): Pr
       const ai = new GoogleGenAI({ apiKey: geminiKey });
       
       const parts: any[] = [
-        { text: `Tạo một hình ảnh minh họa SIÊU ĐẸP, nghệ thuật và có tính thẩm mỹ cực cao cho bài viết SEO. 
-        Chủ đề: ${prompt}. 
-        Yêu cầu kỹ thuật: Hình ảnh sắc nét 4K, màu sắc rực rỡ và hài hòa, bố cục hiện đại theo phong cách nhiếp ảnh chuyên nghiệp (Cinematic lighting) hoặc minh họa 3D Digital Art tinh tế. 
-        LƯU Ý QUAN TRỌNG: 
-        1. Hình ảnh phải bám sát các chi tiết trong mô tả (như địa chỉ, tên thương hiệu, bối cảnh). 
-        2. Nếu có chữ trong ảnh, phải viết ĐÚNG CHÍNH TẢ các thông tin được cung cấp. 
-        3. Tránh các chi tiết kỳ dị, biến dạng, mờ nhòe hoặc không tự nhiên. 
-        ${productImage ? `4. QUAN TRỌNG NHẤT: Hãy tích hợp sản phẩm/người trong ảnh đính kèm vào bối cảnh này một cách tự nhiên nhất. Sản phẩm phải là tâm điểm của bức ảnh, được đặt trong không gian sang trọng và chuyên nghiệp.` : ''}` }
+        { text: `Create a STUNNING, high-end professional and artistic SEO article illustration.
+        Subject: ${prompt}.
+        Style: Cinematic lighting, sharp 4K focus, harmonious vibrant colors, modern composition, professional photography or refined 3D digital art.
+        IMPORTANT: 
+        1. Follow the description details closely (locations, brand names, context).
+        2. Any text in the image must be correctly spelled.
+        3. Avoid distorted or unnatural details.
+        ${productImage ? `4. PRODUCT INTEGRATION: Seamlessly integrate the product/person from the attached image into this professional context. The product should be the focal point, placed in a luxurious and professional setting that matches the article's theme.` : ''}` }
       ];
 
       if (productImage) {
@@ -272,7 +272,7 @@ export const generateAIImage = async (prompt: string, productImage?: string): Pr
       }
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
+        model: 'gemini-3.1-flash-image-preview',
         contents: { parts },
         config: {
           imageConfig: {

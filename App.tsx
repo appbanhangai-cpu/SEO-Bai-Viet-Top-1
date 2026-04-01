@@ -339,23 +339,25 @@ const App: React.FC = () => {
     setProgressMsg('AI đang viết nội dung bài viết...');
     try {
       const data = await generateArticleContent(topic, config, outline);
-      setProgressMsg('Đang đưa sản phẩm thực tế của bạn vào bối cảnh chuyên nghiệp...');
       
-      const imagePromises = data.sections.map(async (sec, idx) => {
+      const sectionsWithImages = [...data.sections];
+      const totalSections = sectionsWithImages.length;
+      
+      for (let i = 0; i < totalSections; i++) {
+        const sec = sectionsWithImages[i];
+        setProgressMsg(`Đang đưa sản phẩm vào bối cảnh chuyên nghiệp (${i + 1}/${totalSections})...`);
+        
         try {
-          // Sử dụng ảnh sản phẩm tương ứng nếu có nhiều ảnh, hoặc ảnh đầu tiên
           const currentProductImage = config.productImages && config.productImages.length > 0 
-            ? config.productImages[idx % config.productImages.length] 
+            ? config.productImages[i % config.productImages.length] 
             : undefined;
           const img = await generateAIImage(sec.prompt || sec.title, currentProductImage);
-          return { ...sec, image: img };
+          sectionsWithImages[i] = { ...sec, image: img };
         } catch (imgError) {
           console.error("Lỗi tạo ảnh cho mục:", sec.title, imgError);
-          return { ...sec, image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop" };
+          sectionsWithImages[i] = { ...sec, image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop" };
         }
-      });
-
-      const sectionsWithImages = await Promise.all(imagePromises);
+      }
       
       setArticle({ ...data, sections: sectionsWithImages });
       nextStep();
