@@ -39,20 +39,16 @@ export const generateOutline = async (topic: string, config: SEOConfig): Promise
     if (!apiKey) throw new Error('GEMINI_API_KEY chưa được cấu hình.');
     
     const ai = new GoogleGenAI({ apiKey });
-    const prompt = `Xây dựng dàn ý bài viết chuẩn SEO cho chủ đề: "${topic}". 
-    Phong cách: ${config.style}. 
-    Từ khóa chính cần quảng cáo: ${config.mainKeyword}. 
-    Số lượng mục H2 yêu cầu: ${config.h2Count}. 
-    Ngôn ngữ: ${config.language}. 
-    Thông tin liên hệ: ${config.additionalInfo}.
-    URL nhúng bản đồ: ${config.mapEmbedUrl || 'Không có'}.
-    Hãy trả về một danh sách các tiêu đề mục (H2/H3) hấp dẫn, kích thích click và tối ưu SEO.`;
+    const prompt = `Xây dựng dàn ý SEO cho: "${topic}". 
+    Style: ${config.style}. Keyword: ${config.mainKeyword}. H2 count: ${config.h2Count}. Lang: ${config.language}. Info: ${config.additionalInfo}. Map: ${config.mapEmbedUrl || 'No'}.
+    Return JSON array of H2/H3 titles.`;
 
     const response = await ai.models.generateContent({
-      model: config.model || 'gemini-3-flash-preview',
+      // Force use of flash model for outline to ensure speed
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -75,18 +71,12 @@ export const generateOutline = async (topic: string, config: SEOConfig): Promise
   } else {
     // OpenAI or Grok
     const openai = getOpenAIClient(config.provider);
-    const prompt = `Xây dựng dàn ý bài viết chuẩn SEO cho chủ đề: "${topic}". 
-    Phong cách: ${config.style}. 
-    Từ khóa chính cần quảng cáo: ${config.mainKeyword}. 
-    Số lượng mục H2 yêu cầu: ${config.h2Count}. 
-    Ngôn ngữ: ${config.language}. 
-    Thông tin liên hệ: ${config.additionalInfo}.
-    URL nhúng bản đồ: ${config.mapEmbedUrl || 'Không có'}.
-    Hãy trả về một danh sách các tiêu đề mục (H2/H3) hấp dẫn, kích thích click và tối ưu SEO.
-    Định dạng trả về: JSON array các object có thuộc tính "title". Ví dụ: [{"title": "Mục 1"}, {"title": "Mục 2"}]`;
+    const prompt = `Xây dựng dàn ý SEO cho: "${topic}". 
+    Style: ${config.style}. Keyword: ${config.mainKeyword}. H2 count: ${config.h2Count}. Lang: ${config.language}. Info: ${config.additionalInfo}. Map: ${config.mapEmbedUrl || 'No'}.
+    Return JSON array of H2/H3 titles.`;
 
     const response = await openai.chat.completions.create({
-      model: config.model,
+      model: config.provider === AIProvider.OPENAI ? "gpt-4o-mini" : (config.provider === AIProvider.GROK ? "grok-2-mini" : config.model),
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
     });
@@ -113,9 +103,10 @@ export const regenerateOutlineTitle = async (currentTitle: string, topic: string
     if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: config.model || 'gemini-3-flash-preview',
+      // Force flash for quick title regeneration
+      model: 'gemini-3-flash-preview',
       contents: prompt,
-      config: { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+      config: { thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL } }
     });
     return response.text?.trim() || currentTitle;
   } else {

@@ -106,6 +106,7 @@ const App: React.FC = () => {
   const [selectedKeyProvider, setSelectedKeyProvider] = useState<AIProvider>(AIProvider.GEMINI);
   const [hasApiKey, setHasApiKey] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef(false);
 
   useEffect(() => {
     const keyMap: Record<AIProvider, string> = {
@@ -265,20 +266,29 @@ const App: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleStop = () => {
+    abortRef.current = true;
+    setIsLoading(false);
+    setProgressMsg('');
+  };
+
   const handleGenerateOutline = async () => {
     if (!hasApiKey) {
       setErrorState({ message: "Bạn hãy Nạp API Key để tiếp tục!", isQuota: true });
       setShowKeyInput(true);
       return;
     }
+    abortRef.current = false;
     setIsLoading(true);
     setErrorState(null);
     setProgressMsg('AI đang nghiên cứu chủ đề và xây dựng dàn ý...');
     try {
       const data = await generateOutline(topic, config);
+      if (abortRef.current) return;
       setOutline(data);
       if (step < 3) nextStep();
     } catch (error: any) {
+      if (abortRef.current) return;
       console.error("Lỗi tạo dàn ý:", error);
       const isQuota = error.message.includes('429') || error.message.toLowerCase().includes('quota');
       const isInvalidKey = error.message.includes('403') || error.message.toLowerCase().includes('api key');
@@ -334,34 +344,50 @@ const App: React.FC = () => {
       setShowKeyInput(true);
       return;
     }
+    abortRef.current = false;
     setIsLoading(true);
     setErrorState(null);
     setProgressMsg('AI đang viết nội dung bài viết...');
     try {
       const data = await generateArticleContent(topic, config, outline);
+      if (abortRef.current) return;
       
       const sectionsWithImages = [...data.sections];
       const totalSections = sectionsWithImages.length;
+      let completedImages = 0;
       
-      for (let i = 0; i < totalSections; i++) {
-        const sec = sectionsWithImages[i];
-        setProgressMsg(`Đang đưa sản phẩm vào bối cảnh chuyên nghiệp (${i + 1}/${totalSections})...`);
-        
-        try {
-          const currentProductImage = config.productImages && config.productImages.length > 0 
-            ? config.productImages[i % config.productImages.length] 
-            : undefined;
-          const img = await generateAIImage(sec.prompt || sec.title, currentProductImage);
-          sectionsWithImages[i] = { ...sec, image: img };
-        } catch (imgError) {
-          console.error("Lỗi tạo ảnh cho mục:", sec.title, imgError);
-          sectionsWithImages[i] = { ...sec, image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop" };
-        }
+      // Xử lý song song 3 ảnh cùng lúc để tăng tốc độ mà không bị giới hạn API
+      const concurrency = 3;
+      for (let i = 0; i < totalSections; i += concurrency) {
+        if (abortRef.current) return;
+        const chunk = sectionsWithImages.slice(i, i + concurrency);
+        const chunkPromises = chunk.map(async (sec, chunkIdx) => {
+          const actualIdx = i + chunkIdx;
+          try {
+            const currentProductImage = config.productImages && config.productImages.length > 0 
+              ? config.productImages[actualIdx % config.productImages.length] 
+              : undefined;
+            const img = await generateAIImage(sec.prompt || sec.title, currentProductImage);
+            if (abortRef.current) return;
+            sectionsWithImages[actualIdx] = { ...sec, image: img };
+          } catch (imgError) {
+            console.error("Lỗi tạo ảnh cho mục:", sec.title, imgError);
+            sectionsWithImages[actualIdx] = { ...sec, image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop" };
+          } finally {
+            if (!abortRef.current) {
+              completedImages++;
+              setProgressMsg(`Đang đưa sản phẩm vào bối cảnh chuyên nghiệp (${completedImages}/${totalSections})...`);
+            }
+          }
+        });
+        await Promise.all(chunkPromises);
       }
       
+      if (abortRef.current) return;
       setArticle({ ...data, sections: sectionsWithImages });
       nextStep();
     } catch (error: any) {
+      if (abortRef.current) return;
       console.error("Lỗi viết bài:", error);
       const isQuota = error.message.includes('429') || error.message.toLowerCase().includes('quota');
       const isInvalidKey = error.message.includes('403') || error.message.toLowerCase().includes('api key');
@@ -715,6 +741,24 @@ const App: React.FC = () => {
         <div className="flex flex-wrap items-center justify-center md:justify-end gap-3 text-sm font-medium text-gray-300">
           <div className="relative">
             <button 
+              onClick={() => {
+                setStep(AppStep.TOPIC);
+                setTopic('');
+                setOutline([]);
+                setArticle(null);
+                setErrorState(null);
+                setIsEditing(false);
+              }}
+              className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white transition-all shadow-lg font-bold"
+              title="Tạo bài viết mới"
+            >
+              <Plus size={16} />
+              <span className="text-sm">Tạo bài mới</span>
+            </button>
+          </div>
+
+          <div className="relative">
+            <button 
               onClick={() => setShowColorPicker(!showColorPicker)}
               className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-gray-700 hover:border-purple-400 hover:text-purple-400 transition-all bg-[#1e293b]"
               title="Thay đổi màu nền"
@@ -784,6 +828,16 @@ const App: React.FC = () => {
         className="w-full max-w-4xl bg-[#1e293b] rounded-3xl shadow-2xl border border-gray-800 p-8 md:p-12 min-h-[500px] flex flex-col relative print:border-none print:shadow-none print:p-0"
       >
         {renderStepper()}
+
+        {isLoading && (
+          <button 
+            onClick={handleStop}
+            className="absolute top-6 right-6 z-50 flex items-center space-x-2 px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/50 transition-all font-bold text-xs"
+          >
+            <X size={14} />
+            <span>Dừng viết</span>
+          </button>
+        )}
 
         {errorState && (
           <motion.div 
