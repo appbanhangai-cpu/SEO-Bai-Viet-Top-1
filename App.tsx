@@ -290,12 +290,24 @@ const App: React.FC = () => {
     } catch (error: any) {
       if (abortRef.current) return;
       console.error("Lỗi tạo dàn ý:", error);
-      const isQuota = error.message.includes('429') || error.message.toLowerCase().includes('quota');
-      const isInvalidKey = error.message.includes('403') || error.message.toLowerCase().includes('api key');
       
       let message = error.message;
-      if (isQuota) message = "Hạn mức API miễn phí đã hết. Vui lòng nạp API Key cá nhân (trả phí) để tiếp tục.";
-      if (isInvalidKey) message = "API Key không hợp lệ hoặc chưa được kích hoạt. Vui lòng kiểm tra lại trong phần Quản lý API Key.";
+      const isQuota = message.includes('429') || message.toLowerCase().includes('quota');
+      const isInvalidKey = message.includes('403') || message.toLowerCase().includes('api key');
+      const isOverloaded = message.includes('503') || message.toLowerCase().includes('overloaded') || message.toLowerCase().includes('high demand');
+      
+      if (isQuota) {
+        message = "Hạn mức API miễn phí đã hết. Vui lòng nạp API Key cá nhân (trả phí) để tiếp tục.";
+      } else if (isInvalidKey) {
+        message = "API Key không hợp lệ hoặc chưa được kích hoạt. Vui lòng kiểm tra lại trong phần Quản lý API Key.";
+      } else if (isOverloaded) {
+        message = "Hệ thống AI đang quá tải do lượng yêu cầu cao. Vui lòng đợi 1-2 phút rồi thử lại, hoặc đổi sang Model khác.";
+      } else if (message.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(message);
+          if (parsed.error?.message) message = parsed.error.message;
+        } catch (e) {}
+      }
       
       setErrorState({ message, isQuota: isQuota || isInvalidKey });
     } finally {
@@ -389,12 +401,24 @@ const App: React.FC = () => {
     } catch (error: any) {
       if (abortRef.current) return;
       console.error("Lỗi viết bài:", error);
-      const isQuota = error.message.includes('429') || error.message.toLowerCase().includes('quota');
-      const isInvalidKey = error.message.includes('403') || error.message.toLowerCase().includes('api key');
       
       let message = error.message;
-      if (isQuota) message = "Hạn mức API đã hết khi đang viết bài. Hãy sử dụng Key cá nhân hoặc đổi Key khác.";
-      if (isInvalidKey) message = "API Key không hợp lệ. Vui lòng kiểm tra lại.";
+      const isQuota = message.includes('429') || message.toLowerCase().includes('quota');
+      const isInvalidKey = message.includes('403') || message.toLowerCase().includes('api key');
+      const isOverloaded = message.includes('503') || message.toLowerCase().includes('overloaded') || message.toLowerCase().includes('high demand');
+      
+      if (isQuota) {
+        message = "Hạn mức API đã hết khi đang viết bài. Hãy sử dụng Key cá nhân hoặc đổi Key khác.";
+      } else if (isInvalidKey) {
+        message = "API Key không hợp lệ. Vui lòng kiểm tra lại.";
+      } else if (isOverloaded) {
+        message = "Hệ thống AI đang quá tải do lượng yêu cầu cao. Vui lòng đợi 1-2 phút rồi thử lại, hoặc đổi sang Model khác.";
+      } else if (message.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(message);
+          if (parsed.error?.message) message = parsed.error.message;
+        } catch (e) {}
+      }
 
       setErrorState({ message, isQuota: isQuota || isInvalidKey });
     } finally {
@@ -748,6 +772,22 @@ const App: React.FC = () => {
                 setArticle(null);
                 setErrorState(null);
                 setIsEditing(false);
+                setIsLoading(false);
+                setProgressMsg('');
+                setZoomedImage(null);
+                // Reset config to default values
+                setConfig({
+                  style: WritingStyle.GUIDE,
+                  mainKeyword: '',
+                  h2Count: 5,
+                  wordCount: 1500,
+                  language: 'Tiếng Việt',
+                  additionalInfo: '',
+                  productImages: [],
+                  provider: config.provider, // Keep provider/model settings
+                  model: config.model,
+                  mapEmbedUrl: ''
+                });
               }}
               className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white transition-all shadow-lg font-bold"
               title="Tạo bài viết mới"

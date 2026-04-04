@@ -40,39 +40,57 @@ export const generateOutline = async (topic: string, config: SEOConfig): Promise
     
     const ai = new GoogleGenAI({ apiKey });
     const prompt = `Xây dựng dàn ý SEO cho: "${topic}". 
-    Style: ${config.style}. Keyword: ${config.mainKeyword}. H2 count: ${config.h2Count}. Lang: ${config.language}. Info: ${config.additionalInfo}. Map: ${config.mapEmbedUrl || 'No'}.
+    Style: ${config.style}. Keyword: ${config.mainKeyword}. H2 count: ${config.h2Count}. Lang: ${config.language}.
+    Lưu ý: KHÔNG bao gồm các mục "Liên hệ" hoặc "Bản đồ" trong dàn ý vì hệ thống sẽ tự động thêm chúng vào cuối bài viết.
     Return JSON array of H2/H3 titles.`;
 
-    const response = await ai.models.generateContent({
-      // Force use of flash model for outline to ensure speed
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING }
-            },
-            required: ["title"]
-          }
-        }
-      }
-    });
+    // Fallback models for Gemini
+    const fallbackModels = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview'];
+    let lastError: any = null;
 
-    const rawData = JSON.parse(response.text || "[]");
-    return rawData.map((item: any, index: number) => ({
-      id: `section-${index}`,
-      title: item.title
-    }));
+    for (const modelName of fallbackModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING }
+                },
+                required: ["title"]
+              }
+            }
+          }
+        });
+
+        const rawData = JSON.parse(response.text || "[]");
+        return rawData.map((item: any, index: number) => ({
+          id: `section-${index}`,
+          title: item.title
+        }));
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = (err.message || "").toLowerCase();
+        if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("overloaded") || errMsg.includes("exhausted") || errMsg.includes("unavailable")) {
+          console.warn(`Model ${modelName} overloaded, trying next fallback...`);
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastError;
   } else {
     // OpenAI or Grok
     const openai = getOpenAIClient(config.provider);
     const prompt = `Xây dựng dàn ý SEO cho: "${topic}". 
-    Style: ${config.style}. Keyword: ${config.mainKeyword}. H2 count: ${config.h2Count}. Lang: ${config.language}. Info: ${config.additionalInfo}. Map: ${config.mapEmbedUrl || 'No'}.
+    Style: ${config.style}. Keyword: ${config.mainKeyword}. H2 count: ${config.h2Count}. Lang: ${config.language}.
+    Lưu ý: KHÔNG bao gồm các mục "Liên hệ" hoặc "Bản đồ" trong dàn ý vì hệ thống sẽ tự động thêm chúng vào cuối bài viết.
     Return JSON array of H2/H3 titles.`;
 
     const response = await openai.chat.completions.create({
@@ -102,13 +120,30 @@ export const regenerateOutlineTitle = async (currentTitle: string, topic: string
     const apiKey = getApiKey(AIProvider.GEMINI);
     if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
     const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      // Force flash for quick title regeneration
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: { thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL } }
-    });
-    return response.text?.trim() || currentTitle;
+    
+    // Fallback models for Gemini
+    const fallbackModels = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview'];
+    let lastError: any = null;
+
+    for (const modelName of fallbackModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: { thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL } }
+        });
+        return response.text?.trim() || currentTitle;
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = (err.message || "").toLowerCase();
+        if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("overloaded") || errMsg.includes("exhausted") || errMsg.includes("unavailable")) {
+          console.warn(`Model ${modelName} overloaded, trying next fallback...`);
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastError;
   } else {
     const openai = getOpenAIClient(config.provider);
     const response = await openai.chat.completions.create({
@@ -131,9 +166,11 @@ export const generateArticleContent = async (topic: string, config: SEOConfig, o
   - Phong cách viết: ${config.style}
   - Từ khóa chính cần quảng cáo: ${config.mainKeyword}
   - Ngôn ngữ: ${config.language}
-  - Thông tin liên hệ: ${config.additionalInfo}
-  - URL nhúng bản đồ: ${config.mapEmbedUrl || 'Không có'}
+  - Thông tin liên hệ: ${config.additionalInfo} (Hãy lồng ghép thông tin này vào nội dung một cách tự nhiên, KHÔNG tạo mục riêng "Liên hệ" ở cuối)
+  - URL nhúng bản đồ: ${config.mapEmbedUrl || 'Không có'} (KHÔNG chèn link hay iframe này vào nội dung, hệ thống sẽ tự nhúng bản đồ ở cuối bài)
   ${hasProductImages ? '- **LƯU Ý**: Tôi đã cung cấp các hình ảnh sản phẩm thực tế. Hãy viết mô tả bối cảnh hình ảnh (prompt) sao cho sản phẩm này được đặt vào một không gian phù hợp, chuyên nghiệp và hấp dẫn.' : ''}
+  
+  - **LƯU Ý QUAN TRỌNG**: KHÔNG tự ý tạo thêm mục "Bản đồ" hoặc "Liên hệ" ở cuối bài viết vì hệ thống đã tự động thêm chúng. Nếu trong dàn ý có các mục này, hãy bỏ qua hoặc lồng ghép nội dung vào các phần khác.
   
   - **Sử dụng biểu tượng cảm xúc (emojis)** phù hợp ở đầu các đoạn văn hoặc các ý quan trọng để bài viết thêm sinh động.
   - **TRÌNH BÀY THOÁNG ĐÃNG (QUAN TRỌNG)**: 
@@ -141,7 +178,7 @@ export const generateArticleContent = async (topic: string, config: SEOConfig, o
     + Chia nhỏ các ý thành các đoạn văn ngắn (mỗi đoạn không quá 3 câu).
     + **BẮT BUỘC sử dụng danh sách Markdown (dấu gạch ngang - hoặc số 1.) cho các ý liệt kê**. Mỗi ý phải nằm trên một dòng riêng biệt. Tuyệt đối không viết các ý liệt kê dính liền nhau trong một đoạn văn.
   - **Nội dung lôi cuốn**: Sử dụng ngôn từ mạnh mẽ, đặt câu hỏi gợi mở, và tạo sự kết nối với người đọc.
-  - Sử dụng định dạng Markdown cho các tiêu đề (H2, H3), danh sách, và nhấn mạnh (bold/italic).
+  - Sử dụng định dạng Markdown cho các tiêu đề (H2, H3), danh sách, và nhấn mạnh (bold/italic). TUYỆT ĐỐI KHÔNG sử dụng các thẻ HTML như <iframe>, <script>, <style> trong nội dung.
   - Đảm bảo nội dung độc nhất, hữu ích và có giá trị cao cho người đọc.
   
   - Hãy trả về kết quả dưới dạng JSON với cấu trúc:
@@ -163,50 +200,69 @@ export const generateArticleContent = async (topic: string, config: SEOConfig, o
     const apiKey = getApiKey(AIProvider.GEMINI);
     if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
     const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: config.model || 'gemini-3.1-pro-preview',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            sections: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING },
-                  content: { type: Type.STRING },
-                  prompt: { type: Type.STRING }
+
+    // Fallback models for Gemini
+    const primaryModel = config.model || 'gemini-3.1-pro-preview';
+    const fallbackModels = [primaryModel, 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview'];
+    let lastError: any = null;
+
+    for (const modelName of fallbackModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                sections: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      title: { type: Type.STRING },
+                      content: { type: Type.STRING },
+                      prompt: { type: Type.STRING }
+                    },
+                    required: ["title", "content", "prompt"]
+                  }
                 },
-                required: ["title", "content", "prompt"]
-              }
-            },
-            metaDescription: { type: Type.STRING },
-            keywords: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
+                metaDescription: { type: Type.STRING },
+                keywords: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING }
+                }
+              },
+              required: ["title", "sections", "metaDescription", "keywords"]
             }
-          },
-          required: ["title", "sections", "metaDescription", "keywords"]
+          }
+        });
+        const result = JSON.parse(response.text || "{}");
+        return {
+          title: result.title,
+          sections: result.sections.map((s: any, i: number) => ({
+            id: `gen-section-${i}`,
+            title: s.title,
+            content: s.content,
+            prompt: s.prompt
+          })),
+          metaDescription: result.metaDescription,
+          keywords: result.keywords,
+          publishDate: new Date().toISOString()
+        };
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = (err.message || "").toLowerCase();
+        if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("overloaded") || errMsg.includes("exhausted") || errMsg.includes("unavailable")) {
+          console.warn(`Model ${modelName} overloaded, trying next fallback...`);
+          continue;
         }
+        throw err;
       }
-    });
-    const result = JSON.parse(response.text || "{}");
-    return {
-      title: result.title,
-      sections: result.sections.map((s: any, i: number) => ({
-        id: `gen-section-${i}`,
-        title: s.title,
-        content: s.content,
-        prompt: s.prompt
-      })),
-      metaDescription: result.metaDescription,
-      keywords: result.keywords,
-      publishDate: new Date().toISOString()
-    };
+    }
+    throw lastError;
   } else {
     const openai = getOpenAIClient(config.provider);
     const response = await openai.chat.completions.create({
