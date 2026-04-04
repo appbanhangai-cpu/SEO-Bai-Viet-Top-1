@@ -4,7 +4,7 @@ import OpenAI from "openai";
 import { SEOConfig, OutlineSection, GeneratedArticle, AIProvider } from "../types";
 
 // Helper to get API Key for a specific provider
-const getApiKey = (provider: AIProvider) => {
+export const getApiKey = (provider: AIProvider) => {
   if (typeof window !== 'undefined') {
     const keyMap: Record<AIProvider, string> = {
       [AIProvider.GEMINI]: 'GEMINI_API_KEY',
@@ -154,6 +154,138 @@ export const regenerateOutlineTitle = async (currentTitle: string, topic: string
   }
 };
 
+export const generateArticleSkeleton = async (topic: string, config: SEOConfig, outline: OutlineSection[]): Promise<{ title: string, metaDescription: string, keywords: string[], sections: { title: string, briefContext: string }[] }> => {
+  const sectionsPrompt = outline.map(s => `- ${s.title}`).join('\n');
+  const prompt = `Bạn là một chuyên gia SEO. Hãy tạo cấu trúc chi tiết cho bài viết về: "${topic}".
+  Dựa trên dàn ý:
+  ${sectionsPrompt}
+  
+  Hãy trả về JSON:
+  {
+    "title": "Tiêu đề bài viết hấp dẫn (kèm emoji)",
+    "metaDescription": "Mô tả meta chuẩn SEO",
+    "keywords": ["từ khóa 1", "từ khóa 2", ...],
+    "sections": [
+      { "title": "Tiêu đề mục", "briefContext": "Tóm tắt ngắn gọn nội dung cần viết trong mục này (1-2 câu) để đảm bảo tính nhất quán" },
+      ...
+    ]
+  }`;
+
+  if (config.provider === AIProvider.GEMINI) {
+    const apiKey = getApiKey(AIProvider.GEMINI);
+    if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview', // Always use flash for skeleton
+      contents: prompt,
+      config: {
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            metaDescription: { type: Type.STRING },
+            keywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+            sections: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  briefContext: { type: Type.STRING }
+                },
+                required: ["title", "briefContext"]
+              }
+            }
+          },
+          required: ["title", "metaDescription", "keywords", "sections"]
+        }
+      }
+    });
+    return JSON.parse(response.text || "{}");
+  } else {
+    const openai = getOpenAIClient(config.provider);
+    const response = await openai.chat.completions.create({
+      model: config.provider === AIProvider.OPENAI ? "gpt-4o-mini" : config.model,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" }
+    });
+    return JSON.parse(response.choices[0].message.content || "{}");
+  }
+};
+
+export const generateSectionContent = async (topic: string, config: SEOConfig, sectionTitle: string, briefContext: string, overallTitle: string): Promise<{ content: string, prompt: string }> => {
+  const hasProductImages = config.productImages && config.productImages.length > 0;
+  const prompt = `Bạn là một Content Writer chuyên nghiệp. Hãy viết nội dung cho mục "${sectionTitle}" trong bài viết "${overallTitle}" về chủ đề "${topic}".
+  
+  Bối cảnh mục này: ${briefContext}
+  
+  Yêu cầu:
+  - Phong cách: ${config.style}
+  - Từ khóa chính: ${config.mainKeyword}
+  - Ngôn ngữ: ${config.language}
+  - Thông tin liên hệ: ${config.additionalInfo} (Lồng ghép tự nhiên)
+  - TRÌNH BÀY THOÁNG ĐÃNG: Xuống dòng thường xuyên, đoạn văn ngắn (< 3 câu), sử dụng danh sách Markdown (- hoặc 1.) cho các ý liệt kê.
+  - Sử dụng emoji phù hợp.
+  - Markdown cho tiêu đề (H3), bold, italic. KHÔNG dùng HTML tags.
+  ${hasProductImages ? '- Viết mô tả bối cảnh hình ảnh (prompt) để chèn sản phẩm thực tế vào không gian chuyên nghiệp.' : '- Viết mô tả bối cảnh hình ảnh (prompt) minh họa cho nội dung này.'}
+  
+  Trả về JSON:
+  {
+    "content": "Nội dung mục (Markdown)",
+    "prompt": "Mô tả bối cảnh hình ảnh (tiếng Việt, chi tiết)"
+  }`;
+
+  if (config.provider === AIProvider.GEMINI) {
+    const apiKey = getApiKey(AIProvider.GEMINI);
+    if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
+    const ai = new GoogleGenAI({ apiKey });
+    
+    // Fallback models for Gemini
+    const fallbackModels = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview'];
+    let lastError: any = null;
+
+    for (const modelName of fallbackModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                content: { type: Type.STRING },
+                prompt: { type: Type.STRING }
+              },
+              required: ["content", "prompt"]
+            }
+          }
+        });
+        return JSON.parse(response.text || "{}");
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = (err.message || "").toLowerCase();
+        if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("overloaded") || errMsg.includes("exhausted") || errMsg.includes("unavailable")) {
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastError;
+  } else {
+    const openai = getOpenAIClient(config.provider);
+    const response = await openai.chat.completions.create({
+      model: config.provider === AIProvider.OPENAI ? "gpt-4o-mini" : config.model,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" }
+    });
+    return JSON.parse(response.choices[0].message.content || "{}");
+  }
+};
+
 export const generateArticleContent = async (topic: string, config: SEOConfig, outline: OutlineSection[]): Promise<GeneratedArticle> => {
   const sectionsPrompt = outline.map(s => `- ${s.title}`).join('\n');
   const hasProductImages = config.productImages && config.productImages.length > 0;
@@ -212,6 +344,7 @@ export const generateArticleContent = async (topic: string, config: SEOConfig, o
           model: modelName,
           contents: prompt,
           config: {
+            thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
             responseMimeType: "application/json",
             responseSchema: {
               type: Type.OBJECT,

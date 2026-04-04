@@ -5,9 +5,15 @@ import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import { marked } from 'marked';
-import { Search, Settings, FileText, PenTool, ChevronRight, ChevronLeft, RotateCcw, ArrowUp, ArrowDown, Trash2, Plus, Download, Image as ImageIcon, FileOutput, Save, Check, RefreshCw, Copy, BarChart3, Key, Upload, X, Palette, QrCode } from 'lucide-react';
+import { Search, Settings, FileText, PenTool, ChevronRight, ChevronLeft, RotateCcw, ArrowUp, ArrowDown, Trash2, Plus, Download, Image as ImageIcon, FileOutput, Save, Check, RefreshCw, Copy, BarChart3, Key, Upload, X, Palette, QrCode, FileUp } from 'lucide-react';
 import { AppStep, WritingStyle, SEOConfig, OutlineSection, GeneratedArticle, AIProvider } from './types';
-import { generateOutline, generateArticleContent, generateAIImage, regenerateOutlineTitle } from './services/aiService';
+import { generateOutline, generateArticleSkeleton, generateSectionContent, generateAIImage, regenerateOutlineTitle, getApiKey } from './services/aiService';
+import { GoogleGenAI } from "@google/genai";
+import * as pdfjsLib from 'pdfjs-dist';
+import mammoth from 'mammoth';
+
+// Set PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 import { generateAppImages } from './services/imageGenerator';
 
 const STYLE_DESCRIPTIONS: Record<WritingStyle, string> = {
@@ -98,6 +104,85 @@ const App: React.FC = () => {
   const [customLogo, setCustomLogo] = useState<string>("https://images.unsplash.com/photo-1488190211105-8b0e65b80b4e?q=80&w=256&h=256&auto=format&fit=crop");
   const [customAvatar, setCustomAvatar] = useState<string>("https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?q=80&w=256&h=256&auto=format&fit=crop");
   const [appBgColor, setAppBgColor] = useState<string>("#0f172a");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    setProgressMsg('Đang phân tích tệp tin...');
+
+    try {
+      let content = '';
+      if (file.type === 'application/pdf') {
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map((item: any) => item.str).join(' ');
+          fullText += pageText + '\n';
+        }
+        content = fullText;
+      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        content = result.value;
+      } else if (file.type.startsWith('text/')) {
+        content = await file.text();
+      } else if (file.type.startsWith('image/')) {
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (re) => resolve((re.target?.result as string).split(',')[1]);
+          reader.readAsDataURL(file);
+        });
+        
+        const apiKey = getApiKey(AIProvider.GEMINI);
+        if (apiKey) {
+          const ai = new GoogleGenAI({ apiKey });
+          const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: [
+              { text: "Hãy phân tích hình ảnh này và tóm tắt chủ đề chính của nó trong 1 câu ngắn gọn (dưới 15 từ) để làm tiêu đề bài viết SEO. Chỉ trả về tiêu đề, không thêm gì khác." },
+              { inlineData: { data: base64, mimeType: file.type } }
+            ]
+          });
+          content = response.text || '';
+        } else {
+          content = "Hình ảnh: " + file.name;
+        }
+      }
+
+      if (content) {
+        if (content.length > 150) {
+          setProgressMsg('Đang tóm tắt nội dung để tạo chủ đề...');
+          const apiKey = getApiKey(AIProvider.GEMINI);
+          if (apiKey) {
+            const ai = new GoogleGenAI({ apiKey });
+            const response = await ai.models.generateContent({
+              model: 'gemini-3-flash-preview',
+              contents: `Dựa trên nội dung sau, hãy tạo một chủ đề bài viết SEO ngắn gọn, hấp dẫn (dưới 15 từ):\n\n${content.substring(0, 5000)}`
+            });
+            setTopic(response.text?.trim().replace(/^"|"$/g, '') || content.substring(0, 100));
+          } else {
+            setTopic(content.substring(0, 100).trim() + "...");
+          }
+        } else {
+          setTopic(content.trim().replace(/^"|"$/g, ''));
+        }
+      }
+    } catch (err) {
+      console.error("Lỗi phân tích tệp:", err);
+      alert("Không thể phân tích tệp tin này. Vui lòng thử lại hoặc nhập tay.");
+    } finally {
+      setIsLoading(false);
+      setProgressMsg('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
@@ -105,7 +190,6 @@ const App: React.FC = () => {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [selectedKeyProvider, setSelectedKeyProvider] = useState<AIProvider>(AIProvider.GEMINI);
   const [hasApiKey, setHasApiKey] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef(false);
 
   useEffect(() => {
@@ -359,45 +443,86 @@ const App: React.FC = () => {
     abortRef.current = false;
     setIsLoading(true);
     setErrorState(null);
-    setProgressMsg('AI đang viết nội dung bài viết...');
+    setProgressMsg('AI đang lên khung sườn bài viết...');
     try {
-      const data = await generateArticleContent(topic, config, outline);
+      // 1. Tạo khung sườn bài viết (Skeleton)
+      const skeleton = await generateArticleSkeleton(topic, config, outline);
       if (abortRef.current) return;
       
-      const sectionsWithImages = [...data.sections];
-      const totalSections = sectionsWithImages.length;
-      let completedImages = 0;
+      const initialArticle = {
+        title: skeleton.title,
+        metaDescription: skeleton.metaDescription,
+        keywords: skeleton.keywords,
+        sections: skeleton.sections.map((s, i) => ({
+          id: `gen-section-${i}`,
+          title: s.title,
+          content: '', // Chưa có nội dung
+          prompt: ''
+        })),
+        publishDate: new Date().toISOString()
+      };
       
-      // Xử lý song song 3 ảnh cùng lúc để tăng tốc độ mà không bị giới hạn API
-      const concurrency = 3;
+      setArticle(initialArticle);
+      nextStep(); // Chuyển sang bước viết bài ngay để người dùng thấy khung sườn
+      
+      const totalSections = skeleton.sections.length;
+      let completedSections = 0;
+      
+      // 2. Viết nội dung và tạo ảnh cho từng mục song song (với giới hạn concurrency)
+      const concurrency = 2; // Giới hạn số mục xử lý cùng lúc để tránh quá tải API
+      const sections: GeneratedArticle['sections'] = [...initialArticle.sections];
+      
       for (let i = 0; i < totalSections; i += concurrency) {
         if (abortRef.current) return;
-        const chunk = sectionsWithImages.slice(i, i + concurrency);
-        const chunkPromises = chunk.map(async (sec, chunkIdx) => {
+        const chunk = skeleton.sections.slice(i, i + concurrency);
+        
+        const chunkPromises = chunk.map(async (s, chunkIdx) => {
           const actualIdx = i + chunkIdx;
           try {
+            setProgressMsg(`Đang viết nội dung mục: ${s.title}...`);
+            
+            // Tạo nội dung mục
+            const sectionData = await generateSectionContent(topic, config, s.title, s.briefContext, skeleton.title);
+            if (abortRef.current) return;
+            
+            // Cập nhật nội dung ngay lập tức để người dùng thấy
+            sections[actualIdx] = { 
+              ...sections[actualIdx], 
+              content: sectionData.content,
+              prompt: sectionData.prompt
+            };
+            setArticle(prev => prev ? { ...prev, sections: [...sections] } : null);
+            
+            // Tạo ảnh cho mục này
             const currentProductImage = config.productImages && config.productImages.length > 0 
               ? config.productImages[actualIdx % config.productImages.length] 
               : undefined;
-            const img = await generateAIImage(sec.prompt || sec.title, currentProductImage);
+            
+            const img = await generateAIImage(sectionData.prompt || s.title, currentProductImage);
             if (abortRef.current) return;
-            sectionsWithImages[actualIdx] = { ...sec, image: img };
-          } catch (imgError) {
-            console.error("Lỗi tạo ảnh cho mục:", sec.title, imgError);
-            sectionsWithImages[actualIdx] = { ...sec, image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop" };
+            
+            sections[actualIdx] = { ...sections[actualIdx], image: img };
+            setArticle(prev => prev ? { ...prev, sections: [...sections] } : null);
+            
+          } catch (err) {
+            console.error(`Lỗi xử lý mục ${s.title}:`, err);
+            sections[actualIdx] = { 
+              ...sections[actualIdx], 
+              content: sections[actualIdx].content || "Lỗi khi tạo nội dung cho mục này.",
+              image: sections[actualIdx].image || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop"
+            };
+            setArticle(prev => prev ? { ...prev, sections: [...sections] } : null);
           } finally {
-            if (!abortRef.current) {
-              completedImages++;
-              setProgressMsg(`Đang đưa sản phẩm vào bối cảnh chuyên nghiệp (${completedImages}/${totalSections})...`);
-            }
+            completedSections++;
+            setProgressMsg(`Đang hoàn thiện bài viết (${completedSections}/${totalSections})...`);
           }
         });
+        
         await Promise.all(chunkPromises);
       }
       
-      if (abortRef.current) return;
-      setArticle({ ...data, sections: sectionsWithImages });
-      nextStep();
+      setIsLoading(false);
+      setProgressMsg('');
     } catch (error: any) {
       if (abortRef.current) return;
       console.error("Lỗi viết bài:", error);
@@ -825,6 +950,17 @@ const App: React.FC = () => {
 
 
 
+          {/* Stop Writing Button - Moved to header to avoid overlap */}
+          {isLoading && (
+            <button 
+              onClick={handleStop}
+              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/50 transition-all font-bold text-xs animate-pulse"
+            >
+              <X size={14} />
+              <span className="hidden sm:inline">Dừng viết</span>
+            </button>
+          )}
+
           {/* API Key Button */}
           {hasApiKey ? (
             <button 
@@ -869,16 +1005,6 @@ const App: React.FC = () => {
       >
         {renderStepper()}
 
-        {isLoading && (
-          <button 
-            onClick={handleStop}
-            className="absolute top-6 right-6 z-50 flex items-center space-x-2 px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/50 transition-all font-bold text-xs"
-          >
-            <X size={14} />
-            <span>Dừng viết</span>
-          </button>
-        )}
-
         {errorState && (
           <motion.div 
             initial={{ opacity: 0, height: 0 }}
@@ -921,6 +1047,23 @@ const App: React.FC = () => {
                   <p className="text-gray-400">Nhập chủ đề và từ khóa chính để AI giúp bạn xây dựng bài viết hoàn chỉnh.</p>
                 </div>
                 <div className="max-w-2xl mx-auto space-y-6">
+                  <div className="flex justify-end mb-2">
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      onChange={handleFileUpload} 
+                      className="hidden" 
+                      accept=".txt,.pdf,.doc,.docx,image/*"
+                    />
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center space-x-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 rounded-xl border border-purple-500/30 transition-all text-sm font-bold group"
+                    >
+                      <FileUp size={18} className="group-hover:-translate-y-0.5 transition-transform" />
+                      <span>Phân tích từ File/Ảnh</span>
+                    </button>
+                  </div>
+
                   <div className="relative">
                     <div className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500">
                       <Search size={24} />
@@ -1228,7 +1371,7 @@ const App: React.FC = () => {
                         <h3 className="text-2xl font-bold text-white border-l-4 border-purple-600 pl-4">{sec.title}</h3>
                       )}
                       
-                      {sec.image && (
+                      {sec.image ? (
                         <div className="relative group/img overflow-hidden rounded-3xl shadow-2xl border border-gray-800 z-0 hover:z-50">
                           <img 
                             src={sec.image} 
@@ -1257,13 +1400,25 @@ const App: React.FC = () => {
                             </button>
                           </div>
                         </div>
+                      ) : (
+                        <div className="w-full h-[300px] bg-gray-800/50 rounded-3xl flex flex-col items-center justify-center space-y-3 border border-dashed border-gray-700 animate-pulse print:hidden">
+                           <ImageIcon size={40} className="text-gray-600" />
+                           <span className="text-gray-500 font-medium italic">Đang tạo ảnh minh họa cho mục này...</span>
+                        </div>
                       )}
 
                       {isEditing ? (
                         <textarea className="w-full text-lg min-h-[200px] p-4 bg-[#0f172a] border border-gray-800 rounded-xl text-white outline-none" value={sec.content} onChange={(e) => updateArticleField(idx, 'content', e.target.value)} />
                       ) : (
                         <div className="text-lg markdown-content">
-                          <ReactMarkdown remarkPlugins={[remarkBreaks]}>{sec.content}</ReactMarkdown>
+                          {sec.content ? (
+                            <ReactMarkdown remarkPlugins={[remarkBreaks]}>{sec.content}</ReactMarkdown>
+                          ) : (
+                            <div className="flex items-center space-x-3 text-gray-500 animate-pulse py-8">
+                              <RefreshCw className="animate-spin" size={20} />
+                              <span className="font-medium italic">AI đang viết nội dung cho mục này...</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
