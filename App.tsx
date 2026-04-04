@@ -946,17 +946,6 @@ const App: React.FC = () => {
                       className="w-full pl-14 pr-6 py-5 bg-[#0f172a] border-2 border-gray-800 rounded-2xl focus:border-purple-500 focus:bg-[#1e293b] outline-none transition-all text-xl text-white placeholder-gray-600"
                     />
                   </div>
-
-                  <button 
-                    disabled={!topic}
-                    onClick={nextStep}
-                    className={`w-full py-5 rounded-2xl font-bold text-xl flex items-center justify-center space-x-3 transition-all ${
-                      topic ? 'purple-bg text-white shadow-xl hover:scale-[1.02] active:scale-95' : 'bg-gray-800 text-gray-600 cursor-not-allowed'
-                    }`}
-                  >
-                    <span>Tiếp tục cấu hình</span>
-                    <ChevronRight size={24} />
-                  </button>
                 </div>
               </div>
             )}
